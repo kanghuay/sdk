@@ -161,6 +161,10 @@ class ObjectPointerVisitor;
   RW(Class, async_star_stream_controller)                                      \
   ARW_RELAXED(Smi, future_timeout_future_index)                                \
   ARW_RELAXED(Smi, future_wait_future_index)                                   \
+  RW(Array, bytecode_attributes)                                               \
+  RW(GrowableObjectArray, llvm_constant_pool)                                  \
+  RW(GrowableObjectArray, llvm_function_pool)                                  \
+  RW(Array, llvm_constant_hash_table)                                          \
   RW(CompressedStackMaps, canonicalized_stack_map_entries)                     \
   RW(ObjectPool, global_object_pool)                                           \
   RW(Array, unique_dynamic_targets)                                            \

@@ -81,6 +81,9 @@ declare_args() {
 
   # Whether to use compressed pointers.
   dart_use_compressed_pointers = false
+
+  # Whether to include disassembler in product
+  dart_force_include_disassembler = false
 }
 
 declare_args() {

@@ -9,6 +9,10 @@
 #include "vm/stack_frame.h"
 #include "vm/symbols.h"
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+#include "vm/compiler/frontend/bytecode_reader.h"
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
 namespace dart {
 
 // Keep in sync with:
@@ -51,6 +55,29 @@ intptr_t FindPcOffset(const PcDescriptors& pc_descs, intptr_t yield_index) {
   }
   UNREACHABLE();  // If we cannot find it we have a bug.
 }
+
+#if !defined(DART_PRECOMPILED_RUNTIME)
+intptr_t FindPcOffset(const Bytecode& bytecode, intptr_t yield_index) {
+  if (yield_index == UntaggedPcDescriptors::kInvalidYieldIndex) {
+    return 0;
+  }
+  if (!bytecode.HasSourcePositions()) {
+    return 0;
+  }
+  intptr_t last_yield_point = 0;
+  kernel::BytecodeSourcePositionsIterator iter(Thread::Current()->zone(),
+                                               bytecode);
+  while (iter.MoveNext()) {
+    if (iter.IsYieldPoint()) {
+      last_yield_point++;
+    }
+    if (last_yield_point == yield_index) {
+      return iter.PcOffset();
+    }
+  }
+  UNREACHABLE();  // If we cannot find it we have a bug.
+}
+#endif
 
 // Instance caches library and field references.
 // This way we don't have to do the look-ups for every frame in the stack.
@@ -351,7 +378,8 @@ bool CallerClosureFinder::IsRunningAsync(const Closure& receiver_closure) {
 }
 
 ClosurePtr StackTraceUtils::FindClosureInFrame(ObjectPtr* last_object_in_caller,
-                                               const Function& function) {
+                                               const Function& function,
+                                               bool is_interpreted) {
   NoSafepointScope nsp;
 
   ASSERT(!function.IsNull());
@@ -366,7 +394,8 @@ ClosurePtr StackTraceUtils::FindClosureInFrame(ObjectPtr* last_object_in_caller,
   const intptr_t kNumClosureAndArgs = 4;
   auto& closure = Closure::Handle();
   for (intptr_t i = 0; i < kNumClosureAndArgs; i++) {
-    ObjectPtr arg = last_object_in_caller[i];
+    // KBC builds the stack upwards instead of the usual downwards stack.
+    ObjectPtr arg = last_object_in_caller[(is_interpreted ? -i : i)];
     if (arg->IsHeapObject() && arg->GetClassId() == kClosureCid) {
       closure = Closure::RawCast(arg);
       if (closure.function() == function.ptr()) {
@@ -397,7 +426,7 @@ ClosurePtr StackTraceUtils::ClosureFromFrameFunction(
     // through the yields.
     ObjectPtr* last_caller_obj =
         reinterpret_cast<ObjectPtr*>(frame->GetCallerSp());
-    closure = FindClosureInFrame(last_caller_obj, function);
+    closure = FindClosureInFrame(last_caller_obj, function, frame->is_interpreted());
 
     // If this async function hasn't yielded yet, we're still dealing with a
     // normal stack. Continue to next frame as usual.
@@ -499,6 +528,9 @@ void StackTraceUtils::CollectFramesLazy(
   }
 
   auto& code = Code::Handle(zone);
+  auto& bytecode = Bytecode::Handle(zone);
+  uword pc_offset;
+
   auto& closure = Closure::Handle(zone);
 
   CallerClosureFinder caller_closure_finder(zone);
@@ -519,17 +551,23 @@ void StackTraceUtils::CollectFramesLazy(
 
     // This isn't a special (async) frame we should skip.
     if (!skip_frame) {
-      // Add the current synchronous frame.
+    // Add the current synchronous frame.
+    if (frame->is_interpreted()) {
+      bytecode = frame->LookupDartBytecode();
+      ASSERT(!bytecode.IsNull());
+      code_array.Add(bytecode);
+      pc_offset = frame->pc() - bytecode.PayloadStart();
+      ASSERT(pc_offset > 0 && pc_offset <= static_cast<uword>(bytecode.Size()));
+    } else {
       code = frame->LookupDartCode();
       code_array.Add(code);
-      const uword pc_offset = frame->pc() - code.PayloadStart();
+      pc_offset = frame->pc() - code.PayloadStart();
       ASSERT(pc_offset > 0 && pc_offset <= code.Size());
-      pc_offset_array->Add(pc_offset);
-      // Callback for sync frame.
-      if (on_sync_frames != nullptr) {
-        (*on_sync_frames)(frame);
-      }
     }
+    pc_offset_array->Add(pc_offset);
+    if (on_sync_frames != nullptr) {
+      (*on_sync_frames)(frame);
+    }}
 
     // This frame is running async.
     // Note: The closure might still be null in case it's an unawaited future.
@@ -559,6 +597,7 @@ intptr_t StackTraceUtils::CountFrames(Thread* thread,
   Function& function = Function::Handle(zone);
   Code& code = Code::Handle(zone);
   Closure& closure = Closure::Handle(zone);
+  Bytecode& bytecode = Bytecode::Handle(zone);
   const bool async_function_is_null = async_function.IsNull();
 
   ASSERT(async_function_is_null || sync_async_end != nullptr);
@@ -568,9 +607,15 @@ intptr_t StackTraceUtils::CountFrames(Thread* thread,
       skip_frames--;
       continue;
     }
-    code = frame->LookupDartCode();
-    function = code.function();
 
+    if (frame->is_interpreted()) {
+      bytecode = frame->LookupDartBytecode();
+      function = bytecode.function();
+      if (function.IsNull()) continue;
+    } else {
+      code = frame->LookupDartCode();
+      function = code.function();
+    }
     frame_count++;
 
     const bool function_is_null = function.IsNull();
@@ -581,7 +626,7 @@ intptr_t StackTraceUtils::CountFrames(Thread* thread,
         if (function.IsAsyncClosure() || function.IsAsyncGenClosure()) {
           ObjectPtr* last_caller_obj =
               reinterpret_cast<ObjectPtr*>(frame->GetCallerSp());
-          closure = FindClosureInFrame(last_caller_obj, function);
+          closure = FindClosureInFrame(last_caller_obj, function, frame->is_interpreted());
           if (CallerClosureFinder::IsRunningAsync(closure)) {
             *sync_async_end = false;
             return frame_count;
@@ -609,7 +654,10 @@ intptr_t StackTraceUtils::CollectFrames(Thread* thread,
   DartFrameIterator frames(thread, StackFrameIterator::kNoCrossThreadIteration);
   StackFrame* frame = frames.NextFrame();
   ASSERT(frame != NULL);  // We expect to find a dart invocation frame.
+  Function& function = Function::Handle(zone);
   Code& code = Code::Handle(zone);
+  Bytecode& bytecode = Bytecode::Handle(zone);
+  intptr_t pc_offset;
   intptr_t collected_frames_count = 0;
   for (; (frame != NULL) && (collected_frames_count < count);
        frame = frames.NextFrame()) {
@@ -617,9 +665,19 @@ intptr_t StackTraceUtils::CollectFrames(Thread* thread,
       skip_frames--;
       continue;
     }
-    code = frame->LookupDartCode();
-    const intptr_t pc_offset = frame->pc() - code.PayloadStart();
-    code_array.SetAt(array_offset, code);
+    if (frame->is_interpreted()) {
+      bytecode = frame->LookupDartBytecode();
+      function = bytecode.function();
+      if (function.IsNull()) {
+        continue;
+      }
+      pc_offset = frame->pc() - bytecode.PayloadStart();
+      code_array.SetAt(array_offset, bytecode);
+    } else {
+      code = frame->LookupDartCode();
+      pc_offset = frame->pc() - code.PayloadStart();
+      code_array.SetAt(array_offset, code);
+    }
     pc_offset_array.SetUintPtr(array_offset * kWordSize, pc_offset);
     array_offset++;
     collected_frames_count++;

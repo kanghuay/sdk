@@ -209,6 +209,7 @@ void Breakpoint::PrintJSON(JSONStream* stream) {
 
 void CodeBreakpoint::VisitObjectPointers(ObjectPointerVisitor* visitor) {
   visitor->VisitPointer(reinterpret_cast<ObjectPtr*>(&code_));
+  visitor->VisitPointer(reinterpret_cast<ObjectPtr*>(&bytecode_));
   visitor->VisitPointer(reinterpret_cast<ObjectPtr*>(&saved_value_));
 }
 
@@ -240,6 +241,7 @@ ActivationFrame::ActivationFrame(uword pc,
       sp_(sp),
       ctx_(Context::ZoneHandle()),
       code_(Code::ZoneHandle(code.ptr())),
+      bytecode_(Bytecode::ZoneHandle()),
       function_(Function::ZoneHandle(code.function())),
       live_frame_((kind == kRegular) || (kind == kAsyncActivation)),
       token_pos_initialized_(false),
@@ -259,12 +261,46 @@ ActivationFrame::ActivationFrame(uword pc,
   ASSERT(!function_.IsNull());
 }
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+ActivationFrame::ActivationFrame(uword pc,
+                                 uword fp,
+                                 uword sp,
+                                 const Bytecode& bytecode,
+                                 ActivationFrame::Kind kind)
+    : pc_(pc),
+      fp_(fp),
+      sp_(sp),
+      ctx_(Context::ZoneHandle()),
+      code_(Code::ZoneHandle()),
+      bytecode_(Bytecode::ZoneHandle(bytecode.ptr())),
+      function_(Function::ZoneHandle(bytecode.function())),
+      live_frame_((kind == kRegular) || (kind == kAsyncActivation)),
+      token_pos_initialized_(false),
+      token_pos_(TokenPosition::kNoSource),
+      try_index_(-1),
+      deopt_id_(DeoptId::kNone),
+      line_number_(-1),
+      column_number_(-1),
+      context_level_(-1),
+      deopt_frame_(Array::ZoneHandle()),
+      deopt_frame_offset_(0),
+      kind_(kind),
+      vars_initialized_(false),
+      var_descriptors_(LocalVarDescriptors::ZoneHandle()),
+      desc_indices_(8),
+      pc_desc_(PcDescriptors::ZoneHandle()) {
+  // The frame of a bytecode stub has a null function. It may be encountered
+  // when single stepping.
+}
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
 ActivationFrame::ActivationFrame(Kind kind)
     : pc_(0),
       fp_(0),
       sp_(0),
       ctx_(Context::ZoneHandle()),
       code_(Code::ZoneHandle()),
+      bytecode_(Bytecode::ZoneHandle()),
       function_(Function::ZoneHandle()),
       live_frame_(kind == kRegular),
       token_pos_initialized_(false),
@@ -288,6 +324,7 @@ ActivationFrame::ActivationFrame(const Closure& async_activation)
       sp_(0),
       ctx_(Context::ZoneHandle()),
       code_(Code::ZoneHandle()),
+      bytecode_(Bytecode::ZoneHandle()),
       function_(Function::ZoneHandle()),
       live_frame_(false),
       token_pos_initialized_(false),
@@ -306,10 +343,17 @@ ActivationFrame::ActivationFrame(const Closure& async_activation)
       pc_desc_(PcDescriptors::ZoneHandle()) {
   // Extract the function and the code from the asynchronous activation.
   function_ = async_activation.function();
-  // Force-optimize functions should not be debuggable.
-  ASSERT(!function_.ForceOptimize());
-  function_.EnsureHasCompiledUnoptimizedCode();
-  code_ = function_.unoptimized_code();
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  if (!function_.HasCode() && function_.HasBytecode()) {
+    bytecode_ = function_.bytecode();
+  }
+#endif
+  if (bytecode_.IsNull()) {
+    // Force-optimize functions should not be debuggable.
+    ASSERT(!function_.ForceOptimize());
+    function_.EnsureHasCompiledUnoptimizedCode();
+    code_ = function_.unoptimized_code();
+  }
   ctx_ = async_activation.context();
   ASSERT(fp_ == 0);
   ASSERT(!ctx_.IsNull());
@@ -757,7 +801,8 @@ ObjectPtr ActivationFrame::GetAsyncAwaiter(
     // Look up caller's closure on the stack.
     ObjectPtr* last_caller_obj = reinterpret_cast<ObjectPtr*>(GetCallerSp());
     Closure& closure = Closure::Handle();
-    closure = StackTraceUtils::FindClosureInFrame(last_caller_obj, function_);
+    closure = StackTraceUtils::FindClosureInFrame(last_caller_obj, function_,
+                                                  IsInterpreted());
 
     if (!closure.IsNull() && caller_closure_finder->IsRunningAsync(closure)) {
       closure = caller_closure_finder->FindCaller(closure);
@@ -816,7 +861,7 @@ bool ActivationFrame::HandlesException(const Instance& exc_obj) {
     CallerClosureFinder caller_closure_finder(Thread::Current()->zone());
     ObjectPtr* last_caller_obj = reinterpret_cast<ObjectPtr*>(GetCallerSp());
     Closure& closure = Closure::Handle(
-        StackTraceUtils::FindClosureInFrame(last_caller_obj, function()));
+        StackTraceUtils::FindClosureInFrame(last_caller_obj, function(), IsInterpreted()));
     if (!caller_closure_finder.IsRunningAsync(closure)) {
       return false;
     }
@@ -2034,7 +2079,7 @@ DebuggerStackTrace* DebuggerStackTrace::CollectAwaiterReturn() {
         ObjectPtr* last_caller_obj =
             reinterpret_cast<ObjectPtr*>(frame->GetCallerSp());
         closure =
-            StackTraceUtils::FindClosureInFrame(last_caller_obj, function);
+            StackTraceUtils::FindClosureInFrame(last_caller_obj, function, frame->is_interpreted());
         if (caller_closure_finder.IsRunningAsync(closure)) {
           break;
         }

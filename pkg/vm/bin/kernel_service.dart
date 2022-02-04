@@ -765,11 +765,11 @@ Future _processLoadRequest(request) async {
   final bool enableAsserts = request[9];
   final List<String>? experimentalFlags =
       request[10] != null ? request[10].cast<String>() : null;
-  final String? packageConfig = request[11];
-  final String? multirootFilepaths = request[12];
-  final String? multirootScheme = request[13];
-  final String? workingDirectory = request[14];
-  final String verbosityLevel = request[15];
+  final String? packageConfig = request[12];
+  final String? multirootFilepaths = request[13];
+  final String? multirootScheme = request[14];
+  final String? workingDirectory = request[15];
+  final String verbosityLevel = request[16];
   Uri platformKernelPath;
   List<int>? platformKernel = null;
   if (request[3] is String) {
@@ -1033,6 +1033,7 @@ Future trainInternal(String scriptUri, String? platformKernelPath) async {
     [] /* source files */,
     false /* enable asserts */,
     null /* experimental_flags */,
+    null,
     null /* package_config */,
     null /* multirootFilepaths */,
     null /* multirootScheme */,

@@ -84,10 +84,12 @@ void WeakCodeReferences::DisableCode() {
               mutator_thread, StackFrameIterator::kAllowCrossThreadIteration);
           StackFrame* frame = iterator.NextFrame();
           while (frame != nullptr) {
-            code = frame->LookupDartCode();
-            if (IsOptimizedCode(code_objects, code)) {
-              ReportDeoptimization(code);
-              DeoptimizeAt(mutator_thread, code, frame);
+            if (!frame->is_interpreted()) {
+              code = frame->LookupDartCode();
+              if (IsOptimizedCode(code_objects, code)) {
+                ReportDeoptimization(code);
+                DeoptimizeAt(mutator_thread, code, frame);
+              }
             }
             frame = iterator.NextFrame();
           }

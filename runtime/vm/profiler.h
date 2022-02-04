@@ -476,20 +476,26 @@ class NativeAllocationSampleFilter : public SampleFilter {
 class AbstractCode {
  public:
   explicit AbstractCode(ObjectPtr code) : code_(Object::Handle(code)) {
-    ASSERT(code_.IsNull() || code_.IsCode());
+    ASSERT(code_.IsNull() || code_.IsCode() || code_.IsBytecode());
   }
 
   ObjectPtr ptr() const { return code_.ptr(); }
   const Object* handle() const { return &code_; }
 
   uword PayloadStart() const {
-    ASSERT(code_.IsCode());
-    return Code::Cast(code_).PayloadStart();
+    if (code_.IsCode()) {
+      return Code::Cast(code_).PayloadStart();
+    } else {
+      return Bytecode::Cast(code_).PayloadStart();
+    }
   }
 
   uword Size() const {
-    ASSERT(code_.IsCode());
-    return Code::Cast(code_).Size();
+    if (code_.IsCode()) {
+      return Code::Cast(code_).Size();
+    } else {
+      return Bytecode::Cast(code_).Size();
+    }
   }
 
   int64_t compile_timestamp() const {
@@ -503,6 +509,8 @@ class AbstractCode {
   const char* Name() const {
     if (code_.IsCode()) {
       return Code::Cast(code_).Name();
+    } else if (code_.IsBytecode()) {
+      return Bytecode::Cast(code_).Name();
     } else {
       return "";
     }
@@ -512,6 +520,8 @@ class AbstractCode {
     if (code_.IsCode()) {
       return Code::Cast(code_).QualifiedName(
           NameFormattingParams(Object::kUserVisibleName));
+    } else if (code_.IsBytecode()) {
+      return Bytecode::Cast(code_).QualifiedName();
     } else {
       return "";
     }
@@ -520,6 +530,8 @@ class AbstractCode {
   bool IsStubCode() const {
     if (code_.IsCode()) {
       return Code::Cast(code_).IsStubCode();
+    } else if (code_.IsBytecode()) {
+      return (Bytecode::Cast(code_).function() == Function::null());
     } else {
       return false;
     }
@@ -544,6 +556,8 @@ class AbstractCode {
   ObjectPtr owner() const {
     if (code_.IsCode()) {
       return Code::Cast(code_).owner();
+    } else if (code_.IsBytecode()) {
+      return Bytecode::Cast(code_).function();
     } else {
       return Object::null();
     }
@@ -551,6 +565,7 @@ class AbstractCode {
 
   bool IsNull() const { return code_.IsNull(); }
   bool IsCode() const { return code_.IsCode(); }
+  bool IsBytecode() const { return code_.IsBytecode(); }
 
   bool is_optimized() const {
     if (code_.IsCode()) {

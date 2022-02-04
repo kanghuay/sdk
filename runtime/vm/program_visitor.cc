@@ -756,7 +756,9 @@ void ProgramVisitor::DedupPcDescriptors(Thread* thread) {
         public Dedupper<PcDescriptors, PcDescriptorsKeyValueTrait> {
    public:
     explicit DedupPcDescriptorsVisitor(Zone* zone)
-        : Dedupper(zone), pc_descriptor_(PcDescriptors::Handle(zone)) {
+        : Dedupper(zone),
+          bytecode_(Bytecode::Handle(zone)),
+          pc_descriptor_(PcDescriptors::Handle(zone)) {
       if (Snapshot::IncludesCode(Dart::vm_snapshot_kind())) {
         // Prefer existing objects in the VM isolate.
         AddVMBaseObjects();
@@ -769,7 +771,17 @@ void ProgramVisitor::DedupPcDescriptors(Thread* thread) {
       code.set_pc_descriptors(pc_descriptor_);
     }
 
+    void VisitFunction(const Function& function) {
+      bytecode_ = function.bytecode();
+      if (bytecode_.IsNull()) return;
+      if (bytecode_.InVMIsolateHeap()) return;
+      pc_descriptor_ = bytecode_.pc_descriptors();
+      pc_descriptor_ = Dedup(pc_descriptor_);
+      bytecode_.set_pc_descriptors(pc_descriptor_);
+    }
+
    private:
+    Bytecode& bytecode_;
     PcDescriptors& pc_descriptor_;
   };
 

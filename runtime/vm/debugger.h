@@ -243,6 +243,7 @@ class CodeBreakpoint {
                  BreakpointLocation* loc,
                  uword pc,
                  UntaggedPcDescriptors::Kind kind);
+  CodeBreakpoint(const Bytecode& bytecode, TokenPosition token_pos, uword pc);
   ~CodeBreakpoint();
 
   // Used by GroupDebugger to find CodeBreakpoint associated with
@@ -259,6 +260,7 @@ class CodeBreakpoint {
   void Enable();
   void Disable();
   bool IsEnabled() const { return enabled_count_ > 0; }
+  bool IsInterpreted() const { return bytecode_ != Bytecode::null(); }
 
   CodePtr OrigStubAddress() const;
 
@@ -285,8 +287,11 @@ class CodeBreakpoint {
 
   void PatchCode();
   void RestoreCode();
+  void SetBytecodeBreakpoint();
+  void UnsetBytecodeBreakpoint();
 
   CodePtr code_;
+  BytecodePtr bytecode_;
   uword pc_;
   int enabled_count_;  // incremented for every enabled breakpoint location
 
@@ -324,6 +329,16 @@ class ActivationFrame : public ZoneAllocated {
 
   ActivationFrame(uword pc, const Code& code);
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  ActivationFrame(uword pc,
+                  uword fp,
+                  uword sp,
+                  const Bytecode& bytecode,
+                  Kind kind = kRegular);
+
+  ActivationFrame(uword pc, const Bytecode& bytecode);
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
   explicit ActivationFrame(Kind kind);
 
   explicit ActivationFrame(const Closure& async_activation);
@@ -341,6 +356,11 @@ class ActivationFrame : public ZoneAllocated {
     ASSERT(!code_.IsNull());
     return code_;
   }
+  const Bytecode& bytecode() const {
+    ASSERT(!bytecode_.IsNull());
+    return bytecode_;
+  }
+  bool IsInterpreted() const { return !bytecode_.IsNull(); }
 
   enum Relation {
     kCallee,
@@ -460,6 +480,7 @@ class ActivationFrame : public ZoneAllocated {
   // The anchor of the context chain for this function.
   Context& ctx_;
   Code& code_;
+  Bytecode& bytecode_;
   Function& function_;
   bool live_frame_;  // Is this frame a live frame?
   bool token_pos_initialized_;
@@ -708,6 +729,7 @@ class Debugger {
   void NotifyIsolateCreated();
   void Shutdown();
 
+  void NotifyBytecodeLoaded(const Function& func) {}
   void NotifyDoneLoading();
 
   // Set breakpoint at closest location to function entry.
@@ -757,6 +779,10 @@ class Debugger {
   void set_ignore_breakpoints(bool ignore_breakpoints) {
     ignore_breakpoints_ = ignore_breakpoints;
   }
+
+  bool HasEnabledBytecodeBreakpoints() const;
+  // Called from the interpreter. Note that pc already points to next bytecode.
+  bool HasBytecodeBreakpointAt(const KBCInstr* next_pc) const;
 
   // Put the isolate into single stepping mode when Dart code next runs.
   //
@@ -808,6 +834,9 @@ class Debugger {
   void PrintSettingsToJSONObject(JSONObject* jsobj) const;
 
   static bool IsDebuggable(const Function& func);
+  static bool IsDebugging(Thread* thread, const Function& func) {
+    return false;
+  }
 
   intptr_t limitBreakpointId() { return next_id_; }
 
@@ -917,6 +946,7 @@ class Debugger {
 
   BreakpointLocation* latent_locations_;
   BreakpointLocation* breakpoint_locations_;
+  CodeBreakpoint* code_breakpoints_;
 
   // Tells debugger what to do when resuming execution after a breakpoint.
   ResumeAction resume_action_;

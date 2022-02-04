@@ -758,9 +758,15 @@ FlowGraph* FlowGraphBuilder::BuildGraph() {
   }
 #endif
 
-  auto& kernel_data = ExternalTypedData::Handle(Z, function.KernelData());
-  intptr_t kernel_data_program_offset = function.KernelDataProgramOffset();
+  auto& kernel_data = ExternalTypedData::Handle(Z);
+  intptr_t kernel_data_program_offset = 0;
+  if (!function.is_declared_in_bytecode()) {
+    kernel_data = function.KernelData();
+    kernel_data_program_offset = function.KernelDataProgramOffset();
+  }
 
+  // TODO(alexmarkov): refactor this - StreamingFlowGraphBuilder should not be
+  //  used for bytecode functions.
   StreamingFlowGraphBuilder streaming_flow_graph_builder(
       this, kernel_data, kernel_data_program_offset);
   auto result = streaming_flow_graph_builder.BuildGraph();

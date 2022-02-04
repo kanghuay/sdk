@@ -16,6 +16,49 @@ namespace kernel {
 #define I Isolate::Current()
 #define IG IsolateGroup::Current()
 
+// Returns true if the given method can skip type checks for all type arguments
+// that are not covariant or generic covariant in its implementation.
+bool MethodCanSkipTypeChecksForNonCovariantTypeArguments(
+    const Function& method) {
+  // Dart 2 type system at non-dynamic call sites statically guarantees that
+  // argument values match declarated parameter types for all non-covariant
+  // and non-generic-covariant parameters. The same applies to type parameters
+  // bounds for type parameters of generic functions.
+  //
+  // Normally dynamic call sites will call dyn:* forwarders which perform type
+  // checks.
+  //
+  // Though for some kinds of methods (e.g. ffi trampolines called from native
+  // code) we do have to perform type checks for all parameters.
+  //
+  // TODO(dartbug.com/40813): Remove the closure case when argument checks have
+  // been fully moved out of closures.
+  return !method.CanReceiveDynamicInvocation() &&
+         !(method.IsClosureFunction() &&
+           Function::ClosureBodiesContainNonCovariantTypeArgumentChecks());
+}
+
+// Returns true if the given method can skip type checks for all arguments
+// that are not covariant or generic covariant in its implementation.
+bool MethodCanSkipTypeChecksForNonCovariantArguments(const Function& method) {
+  // Dart 2 type system at non-dynamic call sites statically guarantees that
+  // argument values match declarated parameter types for all non-covariant
+  // and non-generic-covariant parameters. The same applies to type parameters
+  // bounds for type parameters of generic functions.
+  //
+  // Normally dynamic call sites will call dyn:* forwarders which perform type
+  // checks.
+  //
+  // Though for some kinds of methods (e.g. ffi trampolines called from native
+  // code) we do have to perform type checks for all parameters.
+  //
+  // TODO(dartbug.com/40813): Remove the closure case when argument checks have
+  // been fully moved out of closures.
+  return !method.CanReceiveDynamicInvocation() &&
+         !(method.IsClosureFunction() &&
+           Function::ClosureBodiesContainNonCovariantArgumentChecks());
+}
+
 ScopeBuilder::ScopeBuilder(ParsedFunction* parsed_function)
     : result_(NULL),
       parsed_function_(parsed_function),

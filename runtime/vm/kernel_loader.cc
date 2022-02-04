@@ -209,6 +209,7 @@ KernelLoader::KernelLoader(Program* program,
                        &active_class_,
                        /* finalize= */ false),
       inferred_type_metadata_helper_(&helper_, &constant_reader_),
+      bytecode_metadata_helper_(&helper_, &active_class_),
       external_name_class_(Class::Handle(Z)),
       external_name_field_(Field::Handle(Z)),
       potential_natives_(GrowableObjectArray::Handle(Z)),
@@ -455,6 +456,8 @@ void KernelLoader::InitializeFields(UriToSourceTable* uri_to_source_table) {
     script = LoadScriptAt(index, uri_to_source_table);
     scripts.SetAt(index, script);
   }
+
+  bytecode_metadata_helper_.ReadBytecodeComponent();
 }
 
 KernelLoader::KernelLoader(const Script& script,
@@ -481,6 +484,7 @@ KernelLoader::KernelLoader(const Script& script,
                        &active_class_,
                        /* finalize= */ false),
       inferred_type_metadata_helper_(&helper_, &constant_reader_),
+      bytecode_metadata_helper_(&helper_, &active_class_),
       external_name_class_(Class::Handle(Z)),
       external_name_field_(Field::Handle(Z)),
       potential_natives_(GrowableObjectArray::Handle(Z)),
@@ -627,10 +631,12 @@ ObjectPtr KernelLoader::LoadProgram(bool process_pending_classes) {
 
   LongJumpScope jump;
   if (setjmp(*jump.Set()) == 0) {
-    // Note that `problemsAsJson` on Component is implicitly skipped.
-    const intptr_t length = program_->library_count();
-    for (intptr_t i = 0; i < length; i++) {
-      LoadLibrary(i);
+    if (!bytecode_metadata_helper_.ReadLibraries()) {
+      // Note that `problemsAsJson` on Component is implicitly skipped.
+      const intptr_t length = program_->library_count();
+      for (intptr_t i = 0; i < length; i++) {
+        LoadLibrary(i);
+      }
     }
 
     // Finalize still pending classes if requested.
@@ -662,7 +668,7 @@ ObjectPtr KernelLoader::LoadProgram(bool process_pending_classes) {
       return LookupLibrary(main_library);
     }
 
-    return Library::null();
+    return bytecode_metadata_helper_.GetMainLibrary();
   }
 
   // Either class finalization failed or we caught a compile error.
@@ -676,6 +682,10 @@ void KernelLoader::LoadLibrary(const Library& library) {
 
   ASSERT(!library.Loaded());
 
+  bytecode_metadata_helper_.ReadLibrary(library);
+  if (library.Loaded()) {
+    return;
+  }
   const auto& uri = String::Handle(Z, library.url());
   const intptr_t num_libraries = program_->library_count();
   for (intptr_t i = 0; i < num_libraries; ++i) {
@@ -722,10 +732,13 @@ ObjectPtr KernelLoader::LoadExpressionEvaluationFunction(
   // Make the expression evaluation function have the right script,
   // kernel data and parent.
   const auto& eval_script = Script::Handle(Z, function.script());
-  ASSERT(!expression_evaluation_library_.IsNull());
-  auto& kernel_data = ExternalTypedData::Handle(
-      Z, expression_evaluation_library_.kernel_data());
-  intptr_t kernel_offset = expression_evaluation_library_.kernel_offset();
+  auto& kernel_data = ExternalTypedData::Handle(Z);
+  intptr_t kernel_offset = -1;
+  if (!function.is_declared_in_bytecode()) {
+    ASSERT(!expression_evaluation_library_.IsNull());
+    kernel_data = expression_evaluation_library_.kernel_data();
+    kernel_offset = expression_evaluation_library_.kernel_offset();
+  }
   function.SetKernelDataAndScript(eval_script, kernel_data, kernel_offset);
 
   function.set_owner(real_class);
@@ -815,6 +828,10 @@ void KernelLoader::walk_incremental_kernel(BitVector* modified_libs,
                                            bool* is_empty_program,
                                            intptr_t* p_num_classes,
                                            intptr_t* p_num_procedures) {
+  if (bytecode_metadata_helper_.FindModifiedLibrariesForHotReload(
+          modified_libs, is_empty_program, p_num_classes, p_num_procedures)) {
+    return;
+  }
   intptr_t length = program_->library_count();
   *is_empty_program = *is_empty_program && (length == 0);
   bool collect_library_stats =
@@ -1040,7 +1057,7 @@ LibraryPtr KernelLoader::LoadLibrary(intptr_t index) {
 
   if (FLAG_enable_mirrors && annotation_count > 0) {
     ASSERT(annotations_kernel_offset > 0);
-    library.AddMetadata(library, annotations_kernel_offset);
+    library.AddMetadata(library, annotations_kernel_offset, 0);
   }
 
   if (register_class) {
@@ -1176,7 +1193,7 @@ void KernelLoader::FinishTopLevelClassLoading(
 
     if ((FLAG_enable_mirrors || has_pragma_annotation) &&
         annotation_count > 0) {
-      library.AddMetadata(field, field_offset);
+      library.AddMetadata(field, field_offset, 0);
     }
     fields_.Add(&field);
   }
@@ -1318,7 +1335,7 @@ void KernelLoader::LoadLibraryImportsAndExports(Library* library,
 
     if (FLAG_enable_mirrors && dependency_helper.annotation_count_ > 0) {
       ASSERT(annotations_kernel_offset > 0);
-      library->AddMetadata(ns, annotations_kernel_offset);
+      library->AddMetadata(ns, annotations_kernel_offset, 0);
     }
 
     if (prefix.IsNull()) {
@@ -1441,7 +1458,7 @@ void KernelLoader::LoadClass(const Library& library,
   }
 
   if ((FLAG_enable_mirrors || has_pragma_annotation) && annotation_count > 0) {
-    library.AddMetadata(*out_class, class_offset - correction_offset_);
+    library.AddMetadata(*out_class, class_offset - correction_offset_, 0);
   }
 
   // We do not register expression evaluation classes with the VM:
@@ -1550,7 +1567,7 @@ void KernelLoader::FinishClassLoading(const Class& klass,
       }
       if ((FLAG_enable_mirrors || has_pragma_annotation) &&
           annotation_count > 0) {
-        library.AddMetadata(field, field_offset);
+        library.AddMetadata(field, field_offset, 0);
       }
       fields_.Add(&field);
     }
@@ -1690,7 +1707,7 @@ void KernelLoader::FinishClassLoading(const Class& klass,
 
     if ((FLAG_enable_mirrors || has_pragma_annotation) &&
         annotation_count > 0) {
-      library.AddMetadata(function, constructor_offset);
+      library.AddMetadata(function, constructor_offset, 0);
     }
   }
 
@@ -1729,6 +1746,7 @@ void KernelLoader::FinishClassLoading(const Class& klass,
 }
 
 void KernelLoader::FinishLoading(const Class& klass) {
+  ASSERT(!klass.is_declared_in_bytecode());
   ASSERT(klass.IsTopLevel() || (klass.kernel_offset() > 0));
 
   Zone* zone = Thread::Current()->zone();
@@ -2030,7 +2048,7 @@ void KernelLoader::LoadProcedure(const Library& library,
   helper_.SetOffset(procedure_end);
 
   if (annotation_count > 0) {
-    library.AddMetadata(function, procedure_offset);
+    library.AddMetadata(function, procedure_offset, 0);
   }
 
   if (has_pragma_annotation) {
@@ -2361,9 +2379,11 @@ FunctionPtr CreateFieldInitializerFunction(Thread* thread,
   const PatchClass& initializer_owner =
       PatchClass::Handle(zone, PatchClass::New(field_owner, script));
   const Library& lib = Library::Handle(zone, field_owner.library());
-  initializer_owner.set_library_kernel_data(
-      ExternalTypedData::Handle(zone, lib.kernel_data()));
-  initializer_owner.set_library_kernel_offset(lib.kernel_offset());
+  if (!lib.is_declared_in_bytecode()) {
+    initializer_owner.set_library_kernel_data(
+        ExternalTypedData::Handle(zone, lib.kernel_data()));
+    initializer_owner.set_library_kernel_offset(lib.kernel_offset());
+  }
 
   // Create a static initializer.
   FunctionType& signature = FunctionType::Handle(zone, FunctionType::New());

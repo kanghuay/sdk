@@ -423,6 +423,7 @@ class CallSiteResetter : public ValueObject {
   void ZeroEdgeCounters(const Function& function);
   void ResetCaches(const Code& code);
   void ResetCaches(const ObjectPool& pool);
+  void RebindStaticTargets(const Bytecode& code);
   void Reset(const ICData& ic);
   void ResetSwitchableCalls(const Code& code);
 

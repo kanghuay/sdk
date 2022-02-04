@@ -130,6 +130,8 @@ enum TypedDataElementType {
   friend class object;                                                         \
   friend class UntaggedObject;                                                 \
   friend class Heap;                                                           \
+  friend class Interpreter;                                                    \
+  friend class InterpreterHelpers;                                             \
   friend class Simulator;                                                      \
   friend class SimulatorHelpers;                                               \
   friend class OffsetsTable;                                                   \
@@ -760,6 +762,8 @@ class UntaggedObject {
   friend class Instance;                // StorePointer
   friend class StackFrame;              // GetCodeObject assertion.
   friend class CodeLookupTableBuilder;  // profiler
+  friend class Interpreter;
+  friend class InterpreterHelpers;
   friend class Simulator;
   friend class SimulatorHelpers;
   friend class ObjectLocator;
@@ -1044,6 +1048,8 @@ class UntaggedClass : public UntaggedObject {
 #endif  // defined(DART_PRECOMPILER)
 
 #if !defined(DART_PRECOMPILED_RUNTIME)
+  typedef BitField<uint32_t, bool, 0, 1> IsDeclaredInBytecode;
+  typedef BitField<uint32_t, uint32_t, 1, 31> BinaryDeclarationOffset;
   uint32_t kernel_offset_;
 #endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
@@ -1273,6 +1279,11 @@ class UntaggedFunction : public UntaggedObject {
   COMPRESSED_POINTER_FIELD(ArrayPtr, ic_data_array);
   // Currently active code. Accessed from generated code.
   COMPRESSED_POINTER_FIELD(CodePtr, code);
+  ObjectPtr* to_no_code() {
+    return reinterpret_cast<ObjectPtr*>(&ic_data_array_);
+  }
+  NOT_IN_PRECOMPILED(COMPRESSED_POINTER_FIELD(BytecodePtr, bytecode));
+                                                  // after optimization.
 #if defined(DART_PRECOMPILED_RUNTIME)
   VISIT_TO(code);
 #else
@@ -1298,6 +1309,8 @@ class UntaggedFunction : public UntaggedObject {
   F(int, int8_t, inlining_depth)
 
 #if !defined(DART_PRECOMPILED_RUNTIME)
+  typedef BitField<uint32_t, bool, 0, 1> IsDeclaredInBytecode;
+  typedef BitField<uint32_t, uint32_t, 1, 31> BinaryDeclarationOffset;
   uint32_t kernel_offset_;
 
 #define DECLARE(return_type, type, name) type name##_;
@@ -1427,6 +1440,8 @@ class UntaggedField : public UntaggedObject {
                                 // kIllegalCid otherwise.
 
 #if !defined(DART_PRECOMPILED_RUNTIME)
+  typedef BitField<uint32_t, bool, 0, 1> IsDeclaredInBytecode;
+  typedef BitField<uint32_t, uint32_t, 1, 31> BinaryDeclarationOffset;
   uint32_t kernel_offset_;
 #endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
@@ -1595,6 +1610,8 @@ class UntaggedLibrary : public UntaggedObject {
   uint8_t flags_;         // BitField for LibraryFlags.
 
 #if !defined(DART_PRECOMPILED_RUNTIME)
+  typedef BitField<uint32_t, bool, 0, 1> IsDeclaredInBytecode;
+  typedef BitField<uint32_t, uint32_t, 1, 31> BinaryDeclarationOffset;
   uint32_t kernel_offset_;
 #endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
@@ -1642,6 +1659,7 @@ class UntaggedKernelProgramInfo : public UntaggedObject {
   COMPRESSED_POINTER_FIELD(ExternalTypedDataPtr, metadata_mappings)
   COMPRESSED_POINTER_FIELD(ArrayPtr, scripts)
   COMPRESSED_POINTER_FIELD(ArrayPtr, constants)
+  COMPRESSED_POINTER_FIELD(ArrayPtr, bytecode_component)
   COMPRESSED_POINTER_FIELD(GrowableObjectArrayPtr, potential_natives)
   COMPRESSED_POINTER_FIELD(GrowableObjectArrayPtr, potential_pragma_functions)
   COMPRESSED_POINTER_FIELD(ExternalTypedDataPtr, constants_table)
@@ -1780,6 +1798,39 @@ class UntaggedCode : public UntaggedObject {
   friend class UnitSerializationRoots;
   friend class UnitDeserializationRoots;
   friend class CallSiteResetter;
+};
+
+class UntaggedBytecode : public UntaggedObject {
+  RAW_HEAP_OBJECT_IMPLEMENTATION(Bytecode);
+
+  uword instructions_;
+  intptr_t instructions_size_;
+
+  COMPRESSED_POINTER_FIELD(ObjectPoolPtr, object_pool);
+  VISIT_FROM(object_pool);
+  COMPRESSED_POINTER_FIELD(FunctionPtr, function);
+  COMPRESSED_POINTER_FIELD(ArrayPtr, closures);
+  COMPRESSED_POINTER_FIELD(ExceptionHandlersPtr, exception_handlers);
+  COMPRESSED_POINTER_FIELD(PcDescriptorsPtr, pc_descriptors);
+  NOT_IN_PRODUCT(COMPRESSED_POINTER_FIELD(LocalVarDescriptorsPtr, var_descriptors));
+#if defined(PRODUCT)
+  VISIT_TO(pc_descriptors);
+#else
+  VISIT_TO(var_descriptors);
+#endif
+
+  CompressedObjectPtr* to_snapshot(Snapshot::Kind kind) {
+    return reinterpret_cast<CompressedObjectPtr*>(&pc_descriptors_);
+  }
+
+  int32_t instructions_binary_offset_;
+  int32_t source_positions_binary_offset_;
+  int32_t local_variables_binary_offset_;
+
+  static bool ContainsPC(ObjectPtr raw_obj, uword pc);
+
+  friend class Function;
+  friend class StackFrame;
 };
 
 class UntaggedObjectPool : public UntaggedObject {
@@ -2298,6 +2349,18 @@ class UntaggedContextScope : public UntaggedObject {
 class UntaggedSentinel : public UntaggedObject {
   RAW_HEAP_OBJECT_IMPLEMENTATION(Sentinel);
   VISIT_NOTHING();
+};
+
+class UntaggedParameterTypeCheck : public UntaggedObject {
+  RAW_HEAP_OBJECT_IMPLEMENTATION(ParameterTypeCheck);
+  intptr_t index_;
+  AbstractTypePtr param_;
+  VISIT_FROM(param);
+  AbstractTypePtr type_or_bound_;
+  StringPtr name_;
+  POINTER_FIELD(SubtypeTestCachePtr, cache);
+  VISIT_TO(cache);
+  ObjectPtr* to_snapshot(Snapshot::Kind kind) { return to(); }
 };
 
 class UntaggedSingleTargetCache : public UntaggedObject {
@@ -3122,6 +3185,11 @@ COMPILE_ASSERT(sizeof(UntaggedFloat64x2) == 24);
 
 class UntaggedExternalTypedData : public UntaggedTypedDataBase {
   RAW_HEAP_OBJECT_IMPLEMENTATION(ExternalTypedData);
+ protected:
+  VISIT_FROM(length)
+  VISIT_TO(length)
+
+  friend class BytecodeLayout;
 };
 
 class UntaggedPointer : public UntaggedPointerBase {

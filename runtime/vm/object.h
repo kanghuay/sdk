@@ -445,6 +445,14 @@ class Object {
   V(ExceptionHandlers, empty_exception_handlers)                               \
   V(Array, extractor_parameter_types)                                          \
   V(Array, extractor_parameter_names)                                          \
+  V(Bytecode, implicit_getter_bytecode)                                        \
+  V(Bytecode, implicit_setter_bytecode)                                        \
+  V(Bytecode, implicit_static_getter_bytecode)                                 \
+  V(Bytecode, method_extractor_bytecode)                                       \
+  V(Bytecode, invoke_closure_bytecode)                                         \
+  V(Bytecode, invoke_field_bytecode)                                           \
+  V(Bytecode, nsm_dispatcher_bytecode)                                         \
+  V(Bytecode, dynamic_invocation_forwarder_bytecode)                           \
   V(Sentinel, sentinel)                                                        \
   V(Sentinel, transition_sentinel)                                             \
   V(Sentinel, unknown_constant)                                                \
@@ -493,6 +501,7 @@ class Object {
     return kernel_program_info_class_;
   }
   static ClassPtr code_class() { return code_class_; }
+  static ClassPtr bytecode_class() { return bytecode_class_; }
   static ClassPtr instructions_class() { return instructions_class_; }
   static ClassPtr instructions_section_class() {
     return instructions_section_class_;
@@ -520,6 +529,7 @@ class Object {
     return unhandled_exception_class_;
   }
   static ClassPtr unwind_error_class() { return unwind_error_class_; }
+  static ClassPtr dyncalltypecheck_class() { return dyncalltypecheck_class_; }
   static ClassPtr singletargetcache_class() { return singletargetcache_class_; }
   static ClassPtr unlinkedcall_class() { return unlinkedcall_class_; }
   static ClassPtr monomorphicsmiablecall_class() {
@@ -828,7 +838,7 @@ class Object {
   static ClassPtr kernel_program_info_class_;  // Class of KernelProgramInfo vm
                                                // object.
   static ClassPtr code_class_;                 // Class of the Code vm object.
-
+  static ClassPtr bytecode_class_;      // Class of the Bytecode vm object.
   static ClassPtr instructions_class_;  // Class of the Instructions vm object.
   static ClassPtr instructions_section_class_;  // Class of InstructionsSection.
   static ClassPtr instructions_table_class_;    // Class of InstructionsTable.
@@ -842,6 +852,7 @@ class Object {
   static ClassPtr context_class_;            // Class of the Context vm object.
   static ClassPtr context_scope_class_;      // Class of ContextScope vm object.
   static ClassPtr sentinel_class_;           // Class of Sentinel vm object.
+  static ClassPtr dyncalltypecheck_class_;   // Class of ParameterTypeCheck.
   static ClassPtr singletargetcache_class_;  // Class of SingleTargetCache.
   static ClassPtr unlinkedcall_class_;       // Class of UnlinkedCall.
   static ClassPtr
@@ -1602,11 +1613,30 @@ class Class : public Object {
   void set_allocation_stub(const Code& value) const;
 #endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  intptr_t binary_declaration_offset() const {
+    return UntaggedClass::BinaryDeclarationOffset::decode(
+        untag()->kernel_offset_);
+  }
+  void set_binary_declaration_offset(intptr_t value) const {
+    ASSERT(value >= 0);
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedClass::BinaryDeclarationOffset::update(
+                        value, untag()->kernel_offset_));
+  }
+  void set_is_declared_in_bytecode(bool value) const {
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedClass::IsDeclaredInBytecode::update(
+                        value, untag()->kernel_offset_));
+  }
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
   intptr_t kernel_offset() const {
 #if defined(DART_PRECOMPILED_RUNTIME)
     return 0;
 #else
-    return untag()->kernel_offset_;
+    ASSERT(!is_declared_in_bytecode());
+    return binary_declaration_offset();
 #endif
   }
 
@@ -1614,8 +1644,35 @@ class Class : public Object {
 #if defined(DART_PRECOMPILED_RUNTIME)
     UNREACHABLE();
 #else
-    ASSERT(value >= 0);
-    StoreNonPointer(&untag()->kernel_offset_, value);
+    ASSERT(!is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  intptr_t bytecode_offset() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return 0;
+#else
+    ASSERT(is_declared_in_bytecode());
+    return binary_declaration_offset();
+#endif
+  }
+
+  void set_bytecode_offset(intptr_t value) const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    UNREACHABLE();
+#else
+    ASSERT(is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  bool is_declared_in_bytecode() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return false;
+#else
+    return UntaggedClass::IsDeclaredInBytecode::decode(
+        untag()->kernel_offset_);
 #endif
   }
 
@@ -1920,6 +1977,7 @@ class Class : public Object {
   friend class Instance;
   friend class Object;
   friend class Type;
+  friend class InterpreterHelpers;
   friend class Intrinsifier;
   friend class ProgramWalker;
   friend class Precompiler;
@@ -1976,6 +2034,41 @@ class PatchClass : public Object {
   static PatchClassPtr New();
 
   FINAL_HEAP_OBJECT_IMPLEMENTATION(PatchClass, Object);
+  friend class Class;
+};
+
+class ParameterTypeCheck : public Object {
+ public:
+  // The FP-relative index of the parameter in a bytecode frame (after optional
+  // parameter marshalling) whose assignability needs to be checked, or 0 if
+  // this is a type parameter check.
+  intptr_t index() const { return untag()->index_; }
+  void set_index(intptr_t i) const { StoreNonPointer(&untag()->index_, i); }
+
+  // The type parameter to whose bound needs to be checked, or null if this is
+  // an ordinary parameter check.
+  AbstractTypePtr param() const { return untag()->param_; }
+  void set_param(const AbstractType& t) const;
+
+  // FP[index] assignable to type, OR param is subtype of bound.
+  AbstractTypePtr type_or_bound() const { return untag()->type_or_bound_; }
+  void set_type_or_bound(const AbstractType& t) const;
+
+  // The parameter or type parameter's name to use in an error message.
+  StringPtr name() const { return untag()->name_; }
+  void set_name(const String& n) const;
+
+  SubtypeTestCachePtr cache() const { return untag()->cache_; }
+  void set_cache(const SubtypeTestCache& c) const;
+
+  static intptr_t InstanceSize() {
+    return RoundedAllocationSize(sizeof(UntaggedParameterTypeCheck));
+  }
+
+  static ParameterTypeCheckPtr New();
+
+ private:
+  FINAL_HEAP_OBJECT_IMPLEMENTATION(ParameterTypeCheck, Object);
   friend class Class;
 };
 
@@ -2556,6 +2649,7 @@ class ICData : public CallSiteData {
   friend class Class;
   friend class VMDeserializationRoots;
   friend class ICDataTestTask;
+  friend class Interpreter;
   friend class VMSerializationRoots;
 };
 
@@ -2786,6 +2880,7 @@ class Function : public Object {
   void SetInstructionsSafe(const Code& value) const;
   void ClearCode() const;
   void ClearCodeSafe() const;
+  void ClearBytecode() const;
 
   // Disables optimized code and switches to unoptimized code.
   void SwitchToUnoptimizedCode() const;
@@ -2823,6 +2918,9 @@ class Function : public Object {
   void set_unoptimized_code(const Code& value) const;
   bool HasCode() const;
   static bool HasCode(FunctionPtr function);
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  static inline bool HasBytecode(FunctionPtr function);
+#endif
 
   static intptr_t code_offset() { return OFFSET_OF(UntaggedFunction, code_); }
 
@@ -2845,6 +2943,14 @@ class Function : public Object {
   }
 
   virtual uword Hash() const;
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  bool IsBytecodeAllowed(Zone* zone) const;
+  void AttachBytecode(const Bytecode& bytecode) const;
+  BytecodePtr bytecode() const { return untag()->bytecode(); }
+  inline bool HasBytecode() const;
+#else
+  inline bool HasBytecode() const { return false; }
+#endif
 
   // Returns true if there is at least one debugger breakpoint
   // set in this function.
@@ -2948,7 +3054,7 @@ class Function : public Object {
   FunctionPtr ImplicitClosureTarget(Zone* zone) const;
 
   FunctionPtr ForwardingTarget() const;
-  void SetForwardingTarget(const Function& target) const;
+  void SetForwardingChecks(const Array& checks) const;
 
   UntaggedFunction::Kind kind() const {
     return untag()->kind_tag_.Read<KindBits>();
@@ -2968,6 +3074,18 @@ class Function : public Object {
   }
   bool IsImplicitConstructor() const;
   bool IsFactory() const { return IsConstructor() && is_static(); }
+
+  static bool ClosureBodiesContainNonCovariantTypeArgumentChecks() {
+    return FLAG_enable_interpreter;
+  }
+
+  static bool ClosureBodiesContainNonCovariantArgumentChecks() {
+    return FLAG_precompiled_mode || FLAG_lazy_dispatchers;
+  }
+
+  // Whether this function can receive an invocation where the number and names
+  // of arguments have not been checked.
+  bool CanReceiveDynamicInvocation() const { return IsFfiTrampoline(); }
 
   bool HasThisParameter() const {
     return IsDynamicFunction(/*allow_abstract=*/true) ||
@@ -3030,7 +3148,9 @@ class Function : public Object {
   }
 
   bool NeedsTypeArgumentTypeChecks() const {
-    return !(is_static() || (kind() == UntaggedFunction::kConstructor));
+    return (IsClosureFunction() &&
+            ClosureBodiesContainNonCovariantTypeArgumentChecks()) ||
+           !(is_static() || (kind() == UntaggedFunction::kConstructor));
   }
 
   bool NeedsArgumentTypeChecks() const {
@@ -3125,11 +3245,30 @@ class Function : public Object {
 
 #undef DEFINE_GETTERS_AND_SETTERS
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  intptr_t binary_declaration_offset() const {
+    return UntaggedFunction::BinaryDeclarationOffset::decode(
+        untag()->kernel_offset_);
+  }
+  void set_binary_declaration_offset(intptr_t value) const {
+    ASSERT(value >= 0);
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedFunction::BinaryDeclarationOffset::update(
+                        value, untag()->kernel_offset_));
+  }
+  void set_is_declared_in_bytecode(bool value) const {
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedFunction::IsDeclaredInBytecode::update(
+                        value, untag()->kernel_offset_));
+  }
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
   intptr_t kernel_offset() const {
 #if defined(DART_PRECOMPILED_RUNTIME)
     return 0;
 #else
-    return untag()->kernel_offset_;
+    ASSERT(!is_declared_in_bytecode());
+    return binary_declaration_offset();
 #endif
   }
 
@@ -3137,8 +3276,35 @@ class Function : public Object {
 #if defined(DART_PRECOMPILED_RUNTIME)
     UNREACHABLE();
 #else
-    ASSERT(value >= 0);
-    StoreNonPointer(&untag()->kernel_offset_, value);
+    ASSERT(!is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  intptr_t bytecode_offset() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return 0;
+#else
+    ASSERT(is_declared_in_bytecode());
+    return binary_declaration_offset();
+#endif
+  }
+
+  void set_bytecode_offset(intptr_t value) const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    UNREACHABLE();
+#else
+    ASSERT(is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  bool is_declared_in_bytecode() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return false;
+#else
+    return UntaggedFunction::IsDeclaredInBytecode::decode(
+        untag()->kernel_offset_);
 #endif
   }
 
@@ -3191,6 +3357,9 @@ class Function : public Object {
   }
 
   bool HasOptimizedCode() const;
+
+  // Whether the function is ready for compiler optimizations.
+  bool ShouldCompilerOptimize() const;
 
   // Returns true if the argument counts are valid for calling this function.
   // Otherwise, it returns false and the reason (if error_message is not NULL).
@@ -4090,11 +4259,30 @@ class Field : public Object {
     set_kind_bits(GenericCovariantImplBit::update(value, untag()->kind_bits_));
   }
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  intptr_t binary_declaration_offset() const {
+    return UntaggedField::BinaryDeclarationOffset::decode(
+        untag()->kernel_offset_);
+  }
+  void set_binary_declaration_offset(intptr_t value) const {
+    ASSERT(value >= 0);
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedField::BinaryDeclarationOffset::update(
+                        value, untag()->kernel_offset_));
+  }
+  void set_is_declared_in_bytecode(bool value) const {
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedField::IsDeclaredInBytecode::update(
+                        value, untag()->kernel_offset_));
+  }
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
   intptr_t kernel_offset() const {
 #if defined(DART_PRECOMPILED_RUNTIME)
     return 0;
 #else
-    return untag()->kernel_offset_;
+    ASSERT(!is_declared_in_bytecode());
+    return binary_declaration_offset();
 #endif
   }
 
@@ -4102,8 +4290,35 @@ class Field : public Object {
 #if defined(DART_PRECOMPILED_RUNTIME)
     UNREACHABLE();
 #else
-    ASSERT(value >= 0);
-    StoreNonPointer(&untag()->kernel_offset_, value);
+    ASSERT(!is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  intptr_t bytecode_offset() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return 0;
+#else
+    ASSERT(is_declared_in_bytecode());
+    return binary_declaration_offset();
+#endif
+  }
+
+  void set_bytecode_offset(intptr_t value) const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    UNREACHABLE();
+#else
+    ASSERT(is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  bool is_declared_in_bytecode() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return false;
+#else
+    return UntaggedField::IsDeclaredInBytecode::decode(
+        untag()->kernel_offset_);
 #endif
   }
 
@@ -4459,6 +4674,7 @@ class Field : public Object {
                             const Object& owner,
                             TokenPosition token_pos,
                             TokenPosition end_token_pos);
+  friend class Interpreter;              // Access to bit field.
   friend class StoreInstanceFieldInstr;  // Generated code access to bit field.
 
   enum {
@@ -4644,7 +4860,6 @@ class Script : public Object {
   bool IsLazyLookupSourceAndLineStarts() const;
 #endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
- private:
 #if !defined(DART_PRECOMPILED_RUNTIME)
   bool HasCachedMaxPosition() const;
 
@@ -4653,6 +4868,7 @@ class Script : public Object {
   void SetCachedMaxPosition(intptr_t value) const;
 #endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
+ private:
   void set_resolved_url(const String& value) const;
   void set_source(const String& value) const;
   void set_load_timestamp(int64_t value) const;
@@ -4813,8 +5029,9 @@ class Library : public Object {
 
   void AddExport(const Namespace& ns) const;
 
-  void AddMetadata(const Object& declaration, intptr_t kernel_offset) const;
+  void AddMetadata(const Object& declaration, intptr_t kernel_offset, intptr_t bytecode_offset) const;
   ObjectPtr GetMetadata(const Object& declaration) const;
+  ArrayPtr GetExtendedMetadata(const Object& obj, intptr_t count) const;
 
   // Tries to finds a @pragma annotation on [object].
   //
@@ -4951,11 +5168,30 @@ class Library : public Object {
   ExternalTypedDataPtr kernel_data() const { return untag()->kernel_data(); }
   void set_kernel_data(const ExternalTypedData& data) const;
 
+#if !defined(DART_PRECOMPILED_RUNTIME)
+  intptr_t binary_declaration_offset() const {
+    return UntaggedLibrary::BinaryDeclarationOffset::decode(
+        untag()->kernel_offset_);
+  }
+  void set_binary_declaration_offset(intptr_t value) const {
+    ASSERT(value >= 0);
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedLibrary::BinaryDeclarationOffset::update(
+                        value, untag()->kernel_offset_));
+  }
+  void set_is_declared_in_bytecode(bool value) const {
+    StoreNonPointer(&untag()->kernel_offset_,
+                    UntaggedLibrary::IsDeclaredInBytecode::update(
+                        value, untag()->kernel_offset_));
+  }
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
+
   intptr_t kernel_offset() const {
 #if defined(DART_PRECOMPILED_RUNTIME)
     return 0;
 #else
-    return untag()->kernel_offset_;
+    ASSERT(!is_declared_in_bytecode());
+    return binary_declaration_offset();
 #endif
   }
 
@@ -4963,8 +5199,35 @@ class Library : public Object {
 #if defined(DART_PRECOMPILED_RUNTIME)
     UNREACHABLE();
 #else
-    ASSERT(value >= 0);
-    StoreNonPointer(&untag()->kernel_offset_, value);
+    ASSERT(!is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  intptr_t bytecode_offset() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return 0;
+#else
+    ASSERT(is_declared_in_bytecode());
+    return binary_declaration_offset();
+#endif
+  }
+
+  void set_bytecode_offset(intptr_t value) const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    UNREACHABLE();
+#else
+    ASSERT(is_declared_in_bytecode());
+    set_binary_declaration_offset(value);
+#endif
+  }
+
+  bool is_declared_in_bytecode() const {
+#if defined(DART_PRECOMPILED_RUNTIME)
+    return false;
+#else
+    return UntaggedLibrary::IsDeclaredInBytecode::decode(
+        untag()->kernel_offset_);
 #endif
   }
 
@@ -4996,6 +5259,8 @@ class Library : public Object {
 #if !defined(DART_PRECOMPILED_RUNTIME)
   // Finalize all classes in all libraries.
   static ErrorPtr FinalizeAllClasses();
+  // Eagerly read all bytecode.
+  static ErrorPtr ReadAllBytecode();
 #endif
 
 #if defined(DEBUG) && !defined(DART_PRECOMPILED_RUNTIME)
@@ -5211,6 +5476,9 @@ class KernelProgramInfo : public Object {
                        const Smi& name_index,
                        const Class& klass) const;
 
+  ArrayPtr bytecode_component() const { return untag()->bytecode_component(); }
+  void set_bytecode_component(const Array& bytecode_component) const;
+
  private:
   static KernelProgramInfoPtr New();
 
@@ -5286,13 +5554,15 @@ class ObjectPool : public Object {
 
   template <std::memory_order order = std::memory_order_relaxed>
   ObjectPtr ObjectAt(intptr_t index) const {
-    ASSERT(TypeAt(index) == EntryType::kTaggedObject);
+    ASSERT((TypeAt(index) == EntryType::kTaggedObject) ||
+           (TypeAt(index) == EntryType::kNativeEntryData));
     return LoadPointer<ObjectPtr, order>(&(EntryAddr(index)->raw_obj_));
   }
 
   template <std::memory_order order = std::memory_order_relaxed>
   void SetObjectAt(intptr_t index, const Object& obj) const {
     ASSERT((TypeAt(index) == EntryType::kTaggedObject) ||
+           (TypeAt(index) == EntryType::kNativeEntryData) ||
            (TypeAt(index) == EntryType::kImmediate && obj.IsSmi()));
     StorePointer<ObjectPtr, order>(&EntryAddr(index)->raw_obj_, obj.ptr());
   }
@@ -6941,6 +7211,151 @@ class Code : public Object {
   friend class UntaggedFunction;
   friend class CallSiteResetter;
   friend class CodeKeyValueTrait;  // for UncheckedEntryPointOffset
+};
+
+class Bytecode : public Object {
+ public:
+  uword instructions() const { return untag()->instructions_; }
+
+  uword PayloadStart() const { return instructions(); }
+  intptr_t Size() const { return untag()->instructions_size_; }
+
+  ObjectPoolPtr object_pool() const { return untag()->object_pool(); }
+
+  bool ContainsInstructionAt(uword addr) const {
+    return UntaggedBytecode::ContainsPC(ptr(), addr);
+  }
+
+  PcDescriptorsPtr pc_descriptors() const { return untag()->pc_descriptors(); }
+  void set_pc_descriptors(const PcDescriptors& descriptors) const {
+    ASSERT(descriptors.IsOld());
+    StoreCompressedPointer(&untag()->pc_descriptors_, descriptors.ptr());
+  }
+
+  void Disassemble(DisassemblyFormatter* formatter = NULL) const;
+
+  ExceptionHandlersPtr exception_handlers() const {
+    return untag()->exception_handlers();
+  }
+  void set_exception_handlers(const ExceptionHandlers& handlers) const {
+    ASSERT(handlers.IsOld());
+    StoreCompressedPointer(&untag()->exception_handlers_, handlers.ptr());
+  }
+
+  FunctionPtr function() const { return untag()->function(); }
+
+  void set_function(const Function& function) const {
+    ASSERT(function.IsOld());
+    StoreCompressedPointer(&untag()->function_, function.ptr());
+  }
+
+  static intptr_t InstanceSize() {
+    return RoundedAllocationSize(sizeof(UntaggedBytecode));
+  }
+  static BytecodePtr New(uword instructions,
+                         intptr_t instructions_size,
+                         intptr_t instructions_offset,
+                         const ObjectPool& object_pool);
+
+  ExternalTypedDataPtr GetBinary(Zone* zone) const;
+
+  TokenPosition GetTokenIndexOfPC(uword return_address) const;
+  intptr_t GetTryIndexAtPc(uword return_address) const;
+
+  // Return the pc of the first 'DebugCheck' opcode of the bytecode.
+  // Return 0 if none is found.
+  uword GetFirstDebugCheckOpcodePc() const;
+
+  // Return the pc after the first 'debug checked' opcode in the range.
+  // Return 0 if none is found.
+  uword GetDebugCheckedOpcodeReturnAddress(uword from_offset,
+                                           uword to_offset) const;
+
+  intptr_t instructions_binary_offset() const {
+    return untag()->instructions_binary_offset_;
+  }
+  void set_instructions_binary_offset(intptr_t value) const {
+    StoreNonPointer(&untag()->instructions_binary_offset_, value);
+  }
+
+  intptr_t source_positions_binary_offset() const {
+    return untag()->source_positions_binary_offset_;
+  }
+  void set_source_positions_binary_offset(intptr_t value) const {
+    StoreNonPointer(&untag()->source_positions_binary_offset_, value);
+  }
+  bool HasSourcePositions() const {
+    return (source_positions_binary_offset() != 0);
+  }
+
+  intptr_t local_variables_binary_offset() const {
+    return untag()->local_variables_binary_offset_;
+  }
+  void set_local_variables_binary_offset(intptr_t value) const {
+    StoreNonPointer(&untag()->local_variables_binary_offset_, value);
+  }
+  bool HasLocalVariablesInfo() const {
+    return (local_variables_binary_offset() != 0);
+  }
+
+  LocalVarDescriptorsPtr var_descriptors() const {
+#if defined(PRODUCT)
+    UNREACHABLE();
+    return nullptr;
+#else
+    return untag()->var_descriptors();
+#endif
+  }
+  void set_var_descriptors(const LocalVarDescriptors& value) const {
+#if defined(PRODUCT)
+    UNREACHABLE();
+#else
+    ASSERT(value.IsOld());
+    StoreCompressedPointer(&untag()->var_descriptors_, value.ptr());
+#endif
+  }
+
+  // Will compute local var descriptors if necessary.
+  LocalVarDescriptorsPtr GetLocalVarDescriptors() const;
+
+  const char* Name() const;
+  const char* QualifiedName() const;
+  const char* FullyQualifiedName() const;
+
+  class SlowFindRawBytecodeVisitor : public FindObjectVisitor {
+   public:
+    explicit SlowFindRawBytecodeVisitor(uword pc) : pc_(pc) {}
+    virtual ~SlowFindRawBytecodeVisitor() {}
+
+    // Check if object matches find condition.
+    virtual bool FindObject(ObjectPtr obj) const;
+
+   private:
+    const uword pc_;
+
+    DISALLOW_COPY_AND_ASSIGN(SlowFindRawBytecodeVisitor);
+  };
+
+  static BytecodePtr FindCode(uword pc);
+
+ private:
+  void set_instructions(uword instructions) const {
+    StoreNonPointer(&untag()->instructions_, instructions);
+  }
+  void set_instructions_size(intptr_t size) const {
+    StoreNonPointer(&untag()->instructions_size_, size);
+  }
+  void set_object_pool(const ObjectPool& object_pool) const {
+    StoreCompressedPointer(&untag()->object_pool_, object_pool.ptr());
+  }
+
+  friend class BytecodeDeserializationCluster;
+  friend class ObjectLayout;  // For ObjectLayout::SizeFromClass().
+  friend class BytecodeLayout;
+
+  FINAL_HEAP_OBJECT_IMPLEMENTATION(Bytecode, Object);
+  friend class Class;
+  friend class SnapshotWriter;
 };
 
 class Context : public Object {
@@ -8859,6 +9274,11 @@ class FunctionType : public AbstractType {
   StringPtr ToUserVisibleString() const;
   const char* ToUserVisibleCString() const;
 
+  void set_nullability(Nullability value) const {
+    ASSERT(!IsCanonical());
+    StoreNonPointer(&untag()->nullability_, static_cast<uint8_t>(value));
+  }
+
   static intptr_t InstanceSize() {
     return RoundedAllocationSize(sizeof(UntaggedFunctionType));
   }
@@ -8871,10 +9291,6 @@ class FunctionType : public AbstractType {
   void SetHash(intptr_t value) const;
 
   void set_type_state(uint8_t state) const;
-  void set_nullability(Nullability value) const {
-    ASSERT(!IsCanonical());
-    StoreNonPointer(&untag()->nullability_, static_cast<uint8_t>(value));
-  }
 
   static FunctionTypePtr New(Heap::Space space);
 
@@ -10422,6 +10838,7 @@ class Array : public Instance {
   FINAL_HEAP_OBJECT_IMPLEMENTATION(Array, Instance);
   friend class Class;
   friend class ImmutableArray;
+  friend class Interpreter;
   friend class Object;
   friend class String;
   friend class MessageDeserializer;
@@ -12127,6 +12544,16 @@ void Object::SetPtr(ObjectPtr value, intptr_t default_cid) {
   }
 #endif
 }
+
+#if !defined(DART_PRECOMPILED_RUNTIME)
+bool Function::HasBytecode() const {
+  return untag()->bytecode() != Bytecode::null();
+}
+
+bool Function::HasBytecode(FunctionPtr function) {
+  return function->untag()->bytecode() != Bytecode::null();
+}
+#endif  // !defined(DART_PRECOMPILED_RUNTIME)
 
 intptr_t Field::HostOffset() const {
   ASSERT(is_instance());  // Valid only for dart instance fields.

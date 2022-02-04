@@ -103,6 +103,8 @@ static void AppendFrames(const GrowableObjectArray& code_list,
   StackFrame* frame = frames.NextFrame();
   ASSERT(frame != NULL);  // We expect to find a dart invocation frame.
   Code& code = Code::Handle(zone);
+  Bytecode& bytecode = Bytecode::Handle(zone);
+  intptr_t pc_offset;
   for (; frame != NULL; frame = frames.NextFrame()) {
     if (!frame->IsDartFrame()) {
       continue;
@@ -112,9 +114,18 @@ static void AppendFrames(const GrowableObjectArray& code_list,
       continue;
     }
 
-    code = frame->LookupDartCode();
-    const intptr_t pc_offset = frame->pc() - code.PayloadStart();
-    code_list.Add(code);
+    if (frame->is_interpreted()) {
+      bytecode = frame->LookupDartBytecode();
+      if (bytecode.function() == Function::null()) {
+        continue;
+      }
+      pc_offset = frame->pc() - bytecode.PayloadStart();
+      code_list.Add(bytecode);
+    } else {
+      code = frame->LookupDartCode();
+      pc_offset = frame->pc() - code.PayloadStart();
+      code_list.Add(code);
+    }
     pc_offset_list->Add(pc_offset);
   }
 }

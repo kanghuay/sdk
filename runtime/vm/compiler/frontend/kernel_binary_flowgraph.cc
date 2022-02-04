@@ -15,6 +15,9 @@
 #include "vm/stack_frame.h"
 
 namespace dart {
+
+DECLARE_FLAG(bool, enable_interpreter);
+
 namespace kernel {
 
 #define Z (zone_)
@@ -3515,6 +3518,8 @@ Fragment StreamingFlowGraphBuilder::BuildStaticInvocation(TokenPosition* p) {
                                   nullptr));
 
   // Special case identical(x, y) call.
+  // Note: similar optimization is performed in bytecode flow graph builder -
+  // see BytecodeFlowGraphBuilder::BuildDirectCall().
   // TODO(27590) consider moving this into the inliner and force inline it
   // there.
   if (special_case_identical) {
@@ -5412,7 +5417,7 @@ Fragment StreamingFlowGraphBuilder::BuildFunctionNode(
         if ((FLAG_enable_mirrors && has_valid_annotation) || has_pragma) {
           auto& lib =
               Library::Handle(Z, Class::Handle(Z, function.Owner()).library());
-          lib.AddMetadata(function, func_decl_offset);
+          lib.AddMetadata(function, func_decl_offset, 0);
         }
 
         function.set_is_debuggable(function_node_helper.dart_async_marker_ ==

@@ -18,10 +18,14 @@ namespace dart {
   V(AllocateClosure)                                                           \
   V(AllocateContext)                                                           \
   V(AllocateObject)                                                            \
+  V(AllocateSubtypeTestCache)                                                  \
   V(BoxDouble)                                                                 \
   V(BreakpointRuntimeHandler)                                                  \
   V(SingleStepHandler)                                                         \
   V(CloneContext)                                                              \
+  V(GetFieldForDispatch)                                                       \
+  V(ClosureArgumentsValid)                                                     \
+  V(ResolveCallFunction)                                                       \
   V(DoubleToInteger)                                                           \
   V(FixCallersTarget)                                                          \
   V(FixCallersTargetMonomorphic)                                               \
@@ -30,6 +34,7 @@ namespace dart {
   V(InlineCacheMissHandlerTwoArgs)                                             \
   V(StaticCallMissHandlerOneArg)                                               \
   V(StaticCallMissHandlerTwoArgs)                                              \
+  V(InterpretedInstanceCallMissHandler)                                        \
   V(Instanceof)                                                                \
   V(SubtypeCheck)                                                              \
   V(TypeCheck)                                                                 \
@@ -38,6 +43,7 @@ namespace dart {
   V(InstantiateTypeArguments)                                                  \
   V(NoSuchMethodFromCallStub)                                                  \
   V(NoSuchMethodFromPrologue)                                                  \
+  V(InvokeNoSuchMethod)                                                        \
   V(OptimizeInvokedFunction)                                                   \
   V(TraceICCall)                                                               \
   V(PatchStaticCall)                                                           \
@@ -61,6 +67,7 @@ namespace dart {
   V(LateFieldAssignedDuringInitializationError)                                \
   V(LateFieldNotInitializedError)                                              \
   V(CompileFunction)                                                           \
+  V(CompileInterpretedFunction)                                                \
   V(SwitchableCallMiss)                                                        \
   V(NotLoaded)
 

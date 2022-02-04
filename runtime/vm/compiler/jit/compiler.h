@@ -93,6 +93,8 @@ class Compiler : public AllStatic {
   static ObjectPtr CompileFunction(Thread* thread, const Function& function);
 
   // Generates unoptimized code if not present, current code is unchanged.
+  // Bytecode is considered unoptimized code.
+  // TODO(regis): Revisit when deoptimizing mixed bytecode and jitted code.
   static ErrorPtr EnsureUnoptimizedCode(Thread* thread,
                                         const Function& function);
 
@@ -114,6 +116,9 @@ class Compiler : public AllStatic {
   //
   // Returns Error::null() if there is no compilation error.
   static ErrorPtr CompileAllFunctions(const Class& cls);
+
+  // Eagerly read all bytecode.
+  static ErrorPtr ReadAllBytecode(const Class& cls);
 
   // Notify the compiler that background (optimized) compilation has failed
   // because the mutator thread changed the state (e.g., deoptimization,

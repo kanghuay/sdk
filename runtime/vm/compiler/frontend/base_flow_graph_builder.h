@@ -514,6 +514,7 @@ class BaseFlowGraphBuilder {
   Array& coverage_array_;
 
   friend class StreamingFlowGraphBuilder;
+  friend class BytecodeFlowGraphBuilder;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(BaseFlowGraphBuilder);

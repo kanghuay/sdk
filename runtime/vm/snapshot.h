@@ -68,6 +68,9 @@ class Snapshot {
   static bool IncludesCode(Kind kind) {
     return (kind == kFullJIT) || (kind == kFullAOT);
   }
+  static bool IncludesBytecode(Kind kind) {
+    return (kind == kFull) || (kind == kFullCore) || (kind == kFullJIT);
+  }
 
   static bool IncludesStringsInROData(Kind kind) {
 #if !defined(DART_COMPRESSED_POINTERS)

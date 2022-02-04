@@ -2068,6 +2068,10 @@ static ObjectPtr LookupHeapObjectCode(char** parts, int num_parts) {
   if (!code.IsNull()) {
     return code.ptr();
   }
+  Bytecode& bytecode = Bytecode::Handle(Bytecode::FindCode(pc));
+  if (!bytecode.IsNull()) {
+    return bytecode.ptr();
+  }
 
   // Not found.
   return Object::sentinel().ptr();

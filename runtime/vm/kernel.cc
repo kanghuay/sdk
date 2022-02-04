@@ -7,6 +7,7 @@
 #include "vm/kernel.h"
 
 #include "vm/bit_vector.h"
+#include "vm/compiler/frontend/bytecode_reader.h"
 #include "vm/compiler/frontend/constant_reader.h"
 #include "vm/compiler/frontend/kernel_translation_helper.h"
 #include "vm/compiler/jit/compiler.h"
@@ -235,6 +236,71 @@ static void CollectKernelDataTokenPositions(
   token_position_collector.CollectTokenPositions(kernel_offset);
 }
 
+static void CollectTokenPosition(TokenPosition position,
+                                 GrowableArray<intptr_t>* token_positions) {
+  if (position.IsReal()) {
+    token_positions->Add(position.Serialize());
+  }
+}
+
+static void CollectBytecodeSourceTokenPositions(
+    const Bytecode& bytecode,
+    Zone* zone,
+    GrowableArray<intptr_t>* token_positions) {
+  BytecodeSourcePositionsIterator iter(zone, bytecode);
+  while (iter.MoveNext()) {
+    CollectTokenPosition(iter.TokenPos(), token_positions);
+  }
+}
+
+static void CollectBytecodeFunctionTokenPositions(
+    const Function& function,
+    GrowableArray<intptr_t>* token_positions) {
+  Thread* thread = Thread::Current();
+  Zone* zone = thread->zone();
+  ASSERT(function.is_declared_in_bytecode());
+  CollectTokenPosition(function.token_pos(), token_positions);
+  CollectTokenPosition(function.end_token_pos(), token_positions);
+  if (!function.HasBytecode()) {
+    const Object& result = Object::Handle(
+        zone, BytecodeReader::ReadFunctionBytecode(thread, function));
+    if (!result.IsNull()) {
+      Exceptions::PropagateError(Error::Cast(result));
+    }
+  }
+  Bytecode& bytecode = Bytecode::Handle(zone, function.bytecode());
+  if (bytecode.IsNull()) {
+    return;
+  }
+  if (bytecode.HasSourcePositions() && !function.IsLocalFunction()) {
+    CollectBytecodeSourceTokenPositions(bytecode, zone, token_positions);
+    // Find closure functions in the object pool.
+    const ObjectPool& pool = ObjectPool::Handle(zone, bytecode.object_pool());
+    Object& object = Object::Handle(zone);
+    Function& closure = Function::Handle(zone);
+    for (intptr_t i = 0; i < pool.Length(); i++) {
+      ObjectPool::EntryType entry_type = pool.TypeAt(i);
+      if (entry_type != ObjectPool::EntryType::kTaggedObject) {
+        continue;
+      }
+      object = pool.ObjectAt(i);
+      if (object.IsFunction()) {
+        closure ^= object.ptr();
+        if (closure.kind() == UntaggedFunction::kClosureFunction &&
+            closure.IsLocalFunction()) {
+          CollectTokenPosition(closure.token_pos(), token_positions);
+          CollectTokenPosition(closure.end_token_pos(), token_positions);
+          bytecode = closure.bytecode();
+          ASSERT(!bytecode.IsNull());
+          ASSERT(bytecode.function() != Function::null());
+          ASSERT(bytecode.HasSourcePositions());
+          CollectBytecodeSourceTokenPositions(bytecode, zone, token_positions);
+        }
+      }
+    }
+  }
+}
+
 void CollectTokenPositionsFor(const Script& interesting_script) {
   Thread* thread = Thread::Current();
   Zone* zone = thread->zone();
@@ -268,11 +334,22 @@ void CollectTokenPositionsFor(const Script& interesting_script) {
           token_positions.Add(klass.token_pos().Serialize());
           token_positions.Add(klass.end_token_pos().Serialize());
         }
+        // If class is declared in bytecode, its members should be loaded
+        // (via class finalization) before their token positions could be
+        // collected.
+        if (klass.is_declared_in_bytecode() && !klass.is_finalized()) {
+          const Error& error =
+              Error::Handle(zone, klass.EnsureIsFinalized(thread));
+          if (!error.IsNull()) {
+            Exceptions::PropagateError(error);
+          }
+        }
         if (klass.is_finalized()) {
           temp_array = klass.fields();
           for (intptr_t i = 0; i < temp_array.Length(); ++i) {
             temp_field ^= temp_array.At(i);
-            if (temp_field.kernel_offset() <= 0) {
+            if (!temp_field.is_declared_in_bytecode() &&
+                temp_field.kernel_offset() <= 0) {
               // Skip artificially injected fields.
               continue;
             }
@@ -280,12 +357,23 @@ void CollectTokenPositionsFor(const Script& interesting_script) {
             if (entry_script.ptr() != interesting_script.ptr()) {
               continue;
             }
-            data = temp_field.KernelData();
-            CollectKernelDataTokenPositions(
-                data, interesting_script, entry_script,
-                temp_field.kernel_offset(),
-                temp_field.KernelDataProgramOffset(), zone, &helper,
-                &token_positions);
+            if (temp_field.is_declared_in_bytecode()) {
+              token_positions.Add(temp_field.token_pos().Serialize());
+              token_positions.Add(temp_field.end_token_pos().Serialize());
+              if (temp_field.is_static() &&
+                  temp_field.has_nontrivial_initializer()) {
+                temp_function = temp_field.EnsureInitializerFunction();
+                CollectBytecodeFunctionTokenPositions(temp_function,
+                                                      &token_positions);
+              }
+            } else {
+              data = temp_field.KernelData();
+              CollectKernelDataTokenPositions(
+                  data, interesting_script, entry_script,
+                  temp_field.kernel_offset(),
+                  temp_field.KernelDataProgramOffset(), zone, &helper,
+                  &token_positions);
+            }
           }
           temp_array = klass.current_functions();
           for (intptr_t i = 0; i < temp_array.Length(); ++i) {
@@ -294,15 +382,21 @@ void CollectTokenPositionsFor(const Script& interesting_script) {
             if (entry_script.ptr() != interesting_script.ptr()) {
               continue;
             }
-            data = temp_function.KernelData();
-            CollectKernelDataTokenPositions(
-                data, interesting_script, entry_script,
-                temp_function.kernel_offset(),
-                temp_function.KernelDataProgramOffset(), zone, &helper,
-                &token_positions);
+            if (temp_function.is_declared_in_bytecode()) {
+              CollectBytecodeFunctionTokenPositions(temp_function,
+                                                    &token_positions);
+            } else {
+              data = temp_function.KernelData();
+              CollectKernelDataTokenPositions(
+                  data, interesting_script, entry_script,
+                  temp_function.kernel_offset(),
+                  temp_function.KernelDataProgramOffset(), zone, &helper,
+                  &token_positions);
+            }
           }
         } else {
           // Class isn't finalized yet: read the data attached to it.
+          ASSERT(!klass.is_declared_in_bytecode());
           ASSERT(klass.kernel_offset() > 0);
           data = lib.kernel_data();
           ASSERT(!data.IsNull());
@@ -324,14 +418,20 @@ void CollectTokenPositionsFor(const Script& interesting_script) {
         if (entry_script.ptr() != interesting_script.ptr()) {
           continue;
         }
-        data = temp_function.KernelData();
-        CollectKernelDataTokenPositions(data, interesting_script, entry_script,
-                                        temp_function.kernel_offset(),
-                                        temp_function.KernelDataProgramOffset(),
-                                        zone, &helper, &token_positions);
+        if (temp_function.is_declared_in_bytecode()) {
+          CollectBytecodeFunctionTokenPositions(temp_function,
+                                                &token_positions);
+        } else {
+          data = temp_function.KernelData();
+          CollectKernelDataTokenPositions(
+              data, interesting_script, entry_script,
+              temp_function.kernel_offset(),
+              temp_function.KernelDataProgramOffset(), zone, &helper,
+              &token_positions);
+        }
       } else if (entry.IsField()) {
         const Field& field = Field::Cast(entry);
-        if (field.kernel_offset() <= 0) {
+        if (!field.is_declared_in_bytecode() && field.kernel_offset() <= 0) {
           // Skip artificially injected fields.
           continue;
         }
@@ -339,10 +439,20 @@ void CollectTokenPositionsFor(const Script& interesting_script) {
         if (entry_script.ptr() != interesting_script.ptr()) {
           continue;
         }
-        data = field.KernelData();
-        CollectKernelDataTokenPositions(
-            data, interesting_script, entry_script, field.kernel_offset(),
-            field.KernelDataProgramOffset(), zone, &helper, &token_positions);
+        if (field.is_declared_in_bytecode()) {
+          token_positions.Add(field.token_pos().Serialize());
+          token_positions.Add(field.end_token_pos().Serialize());
+          if (field.is_static() && field.has_nontrivial_initializer()) {
+            temp_function = field.EnsureInitializerFunction();
+            CollectBytecodeFunctionTokenPositions(temp_function,
+                                                  &token_positions);
+          }
+        } else {
+          data = field.KernelData();
+          CollectKernelDataTokenPositions(
+              data, interesting_script, entry_script, field.kernel_offset(),
+              field.KernelDataProgramOffset(), zone, &helper, &token_positions);
+        }
       }
     }
   }
@@ -595,6 +705,15 @@ ObjectPtr BuildParameterDescriptor(const Function& function) {
     Script& script = Script::Handle(zone, function.script());
     helper.InitFromScript(script);
 
+    if (function.is_declared_in_bytecode()) {
+      BytecodeComponentData bytecode_component(
+          &Array::Handle(zone, helper.GetBytecodeComponent()));
+      ActiveClass active_class;
+      BytecodeReaderHelper bytecode_reader_helper(&helper, &active_class,
+                                                  &bytecode_component);
+      return bytecode_reader_helper.BuildParameterDescriptor(function);
+    }
+
     const Class& owner_class = Class::Handle(zone, function.Owner());
     ActiveClass active_class;
     ActiveClassScope active_class_scope(&active_class, &owner_class);
@@ -623,6 +742,14 @@ void ReadParameterCovariance(const Function& function,
   const auto& script = Script::Handle(zone, function.script());
   TranslationHelper translation_helper(thread);
   translation_helper.InitFromScript(script);
+
+  if (function.is_declared_in_bytecode()) {
+    BytecodeReaderHelper bytecode_reader_helper(&translation_helper, nullptr,
+                                                nullptr);
+    bytecode_reader_helper.ReadParameterCovariance(function, is_covariant,
+                                                   is_generic_covariant_impl);
+    return;
+  }
 
   KernelReaderHelper reader_helper(
       zone, &translation_helper, script,
@@ -758,8 +885,55 @@ static ProcedureAttributesMetadata ProcedureAttributesOf(
   return attrs;
 }
 
+static void BytecodeProcedureAttributesError(const Object& function_or_field,
+                                             const Object& value) {
+  FATAL3("Unexpected value of %s bytecode attribute on %s: %s",
+         Symbols::vm_procedure_attributes_metadata().ToCString(),
+         function_or_field.ToCString(), value.ToCString());
+}
+
+static ProcedureAttributesMetadata ProcedureAttributesFromBytecodeAttribute(
+    Zone* zone,
+    const Object& function_or_field) {
+  ProcedureAttributesMetadata attrs;
+  const Object& value = Object::Handle(
+      zone,
+      BytecodeReader::GetBytecodeAttribute(
+          function_or_field, Symbols::vm_procedure_attributes_metadata()));
+  if (!value.IsNull()) {
+    const intptr_t kBytecodeAttributeLength = 3;
+    int32_t elements[kBytecodeAttributeLength];
+    if (!value.IsArray()) {
+      BytecodeProcedureAttributesError(function_or_field, value);
+    }
+    const Array& array = Array::Cast(value);
+    if (array.Length() != kBytecodeAttributeLength) {
+      BytecodeProcedureAttributesError(function_or_field, value);
+    }
+    Object& element = Object::Handle(zone);
+    for (intptr_t i = 0; i < kBytecodeAttributeLength; i++) {
+      element = array.At(i);
+      if (!element.IsSmi()) {
+        BytecodeProcedureAttributesError(function_or_field, value);
+      }
+      elements[i] = Smi::Cast(element).Value();
+    }
+    attrs.InitializeFromFlags(elements[0]);
+    attrs.method_or_setter_selector_id = elements[1];
+    attrs.getter_selector_id = elements[2];
+  }
+  return attrs;
+}
+
 ProcedureAttributesMetadata ProcedureAttributesOf(const Function& function,
                                                   Zone* zone) {
+  if (function.is_declared_in_bytecode()) {
+    if (function.IsImplicitGetterOrSetter()) {
+      const Field& field = Field::Handle(zone, function.accessor_field());
+      return ProcedureAttributesFromBytecodeAttribute(zone, field);
+    }
+    return ProcedureAttributesFromBytecodeAttribute(zone, function);
+  }
   const Script& script = Script::Handle(zone, function.script());
   return ProcedureAttributesOf(
       zone, script, ExternalTypedData::Handle(zone, function.KernelData()),
@@ -768,6 +942,9 @@ ProcedureAttributesMetadata ProcedureAttributesOf(const Function& function,
 
 ProcedureAttributesMetadata ProcedureAttributesOf(const Field& field,
                                                   Zone* zone) {
+  if (field.is_declared_in_bytecode()) {
+    return ProcedureAttributesFromBytecodeAttribute(zone, field);
+  }
   const Class& parent = Class::Handle(zone, field.Owner());
   const Script& script = Script::Handle(zone, parent.script());
   return ProcedureAttributesOf(

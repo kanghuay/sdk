@@ -651,6 +651,11 @@ class KernelCompilationRequest : public ValueObject {
     experimental_flags_object.value.as_array.values = experimental_flags_array;
     experimental_flags_object.value.as_array.length = num_experimental_flags;
 
+    Dart_CObject bytecode;
+    bytecode.type = Dart_CObject_kBool;
+    bytecode.value.as_bool =
+        FLAG_enable_interpreter || FLAG_use_bytecode_compiler;
+
     Dart_CObject message;
     message.type = Dart_CObject_kArray;
     Dart_CObject* message_arr[] = {&tag,
@@ -667,7 +672,8 @@ class KernelCompilationRequest : public ValueObject {
                                    &dills_object,
                                    &num_blob_loads,
                                    &enable_asserts,
-                                   &experimental_flags_object};
+                                   &experimental_flags_object,
+                                   &bytecode};
     message.value.as_array.values = message_arr;
     message.value.as_array.length = ARRAY_SIZE(message_arr);
 
@@ -824,6 +830,11 @@ class KernelCompilationRequest : public ValueObject {
     experimental_flags_object.value.as_array.values = experimental_flags_array;
     experimental_flags_object.value.as_array.length = num_experimental_flags;
 
+    Dart_CObject bytecode;
+    bytecode.type = Dart_CObject_kBool;
+    bytecode.value.as_bool =
+        FLAG_enable_interpreter || FLAG_use_bytecode_compiler;
+
     Dart_CObject package_config_uri;
     if (package_config != NULL) {
       package_config_uri.type = Dart_CObject_kString;
@@ -886,6 +897,7 @@ class KernelCompilationRequest : public ValueObject {
                                    &files,
                                    &enable_asserts,
                                    &experimental_flags_object,
+                                   &bytecode,
                                    &package_config_uri,
                                    &multiroot_filepaths_object,
                                    &multiroot_scheme_object,

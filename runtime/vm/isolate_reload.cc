@@ -1159,7 +1159,7 @@ void ProgramReloadContext::EnsuredUnoptimizedCodeForStack() {
     Function& func = Function::Handle();
     while (it.HasNextFrame()) {
       StackFrame* frame = it.NextFrame();
-      if (frame->IsDartFrame()) {
+      if (frame->IsDartFrame() && !frame->is_interpreted()) {
         func = frame->LookupDartFunction();
         ASSERT(!func.IsNull());
         // Force-optimized functions don't need unoptimized code because their
@@ -1843,6 +1843,7 @@ void ProgramReloadContext::ResetUnoptimizedICsOnStack() {
   StackZone stack_zone(thread);
   Zone* zone = stack_zone.GetZone();
   Code& code = Code::Handle(zone);
+  Bytecode& bytecode = Bytecode::Handle(zone);
   Function& function = Function::Handle(zone);
   CallSiteResetter resetter(zone);
 
@@ -1851,6 +1852,12 @@ void ProgramReloadContext::ResetUnoptimizedICsOnStack() {
                                StackFrameIterator::kAllowCrossThreadIteration);
     StackFrame* frame = iterator.NextFrame();
     while (frame != nullptr) {
+      if (frame->is_interpreted()) {
+        bytecode = frame->LookupDartBytecode();
+        resetter.RebindStaticTargets(bytecode);
+        frame = iterator.NextFrame();
+        continue;
+      }
       code = frame->LookupDartCode();
       if (code.is_optimized() && !code.is_force_optimized()) {
         // If this code is optimized, we need to reset the ICs in the
@@ -1927,6 +1934,14 @@ void ProgramReloadContext::RunInvalidationVisitors() {
   StackZone stack_zone(thread);
   Zone* zone = stack_zone.GetZone();
 
+  Thread* mutator_thread = Isolate::Current()->mutator_thread();
+  if (mutator_thread != nullptr) {
+    Interpreter* interpreter = mutator_thread->interpreter();
+    if (interpreter != nullptr) {
+      interpreter->ClearLookupCache();
+    }
+  }
+
   GrowableArray<const Function*> functions(4 * KB);
   GrowableArray<const KernelProgramInfo*> kernel_infos(KB);
   GrowableArray<const Field*> fields(4 * KB);
@@ -1971,6 +1986,10 @@ void ProgramReloadContext::InvalidateKernelInfos(
       table.Clear();
       info.set_classes_cache(table.Release());
     }
+    // Clear the bytecode object table.
+    if (info.bytecode_component() != Array::null()) {
+      kernel::BytecodeReader::ResetObjectTable(info);
+    }
   }
 }
 
@@ -1987,6 +2006,7 @@ void ProgramReloadContext::InvalidateFunctions(
   Library& owning_lib = Library::Handle(zone);
   Code& code = Code::Handle(zone);
   SafepointWriteRwLocker ml(thread, thread->isolate_group()->program_lock());
+  Bytecode& bytecode = Bytecode::Handle(zone);
   for (intptr_t i = 0; i < functions.length(); i++) {
     const Function& func = *functions[i];
 
@@ -1996,6 +2016,7 @@ void ProgramReloadContext::InvalidateFunctions(
     // Grab the current code.
     code = func.CurrentCode();
     ASSERT(!code.IsNull());
+    bytecode = func.bytecode();
 
     owning_class = func.Owner();
     owning_lib = owning_class.library();
@@ -2005,6 +2026,10 @@ void ProgramReloadContext::InvalidateFunctions(
     // Zero edge counters, before clearing the ICDataArray, since that's where
     // they're held.
     resetter.ZeroEdgeCounters(func);
+
+    if (!bytecode.IsNull()) {
+      resetter.RebindStaticTargets(bytecode);
+    }
 
     if (stub_code) {
       // Nothing to reset.

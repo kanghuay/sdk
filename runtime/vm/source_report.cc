@@ -108,7 +108,11 @@ bool SourceReport::ShouldSkipFunction(const Function& func) {
       func.is_synthetic() || func.is_redirecting_factory()) {
     return true;
   }
-  if (func.IsNonImplicitClosureFunction() &&
+  // Note that context_scope() remains null for closures declared in bytecode,
+  // because the same information is retrieved from the parent's local variable
+  // descriptors.
+  // See IsLocalFunction() case in BytecodeReader::ComputeLocalVarDescriptors.
+  if (!func.is_declared_in_bytecode() && func.IsNonImplicitClosureFunction() &&
       (func.context_scope() == ContextScope::null())) {
     // TODO(iposva): This can arise if we attempt to compile an inner function
     // before we have compiled its enclosing function or if the enclosing
@@ -490,7 +494,16 @@ void SourceReport::VisitFunction(JSONArray* jsarr, const Function& func) {
   const TokenPosition end_pos = func.end_token_pos();
 
   Code& code = Code::Handle(zone(), func.unoptimized_code());
-  if (code.IsNull()) {
+  Bytecode& bytecode = Bytecode::Handle(zone());
+  if (FLAG_enable_interpreter && !func.HasCode() && func.HasBytecode()) {
+    // When the bytecode of a function is loaded, the function code is not null,
+    // but pointing to the stub to interpret the bytecode. The various Print
+    // functions below take code as an argument and know to process the bytecode
+    // if code is null.
+    code = Code::null();  // Ignore installed stub to interpret bytecode.
+    bytecode = func.bytecode();
+  }
+  if (code.IsNull() && bytecode.IsNull()) {
     if (func.HasCode() || (compile_mode_ == kForceCompile)) {
       const Error& err =
           Error::Handle(Compiler::EnsureUnoptimizedCode(thread(), func));
@@ -505,6 +518,10 @@ void SourceReport::VisitFunction(JSONArray* jsarr, const Function& func) {
         return;
       }
       code = func.unoptimized_code();
+      if (FLAG_enable_interpreter && !func.HasCode() && func.HasBytecode()) {
+        code = Code::null();  // Ignore installed stub to interpret bytecode.
+        bytecode = func.bytecode();
+      }
     } else {
       // This function has not been compiled yet.
       JSONObject range(jsarr);
@@ -515,7 +532,7 @@ void SourceReport::VisitFunction(JSONArray* jsarr, const Function& func) {
       return;
     }
   }
-  ASSERT(!code.IsNull());
+  ASSERT(!code.IsNull() || !bytecode.IsNull());
 
   // We skip compiled async functions.  Once an async function has
   // been compiled, there is another function with the same range which
@@ -526,7 +543,7 @@ void SourceReport::VisitFunction(JSONArray* jsarr, const Function& func) {
     range.AddProperty("scriptIndex", GetScriptIndex(script));
     range.AddProperty("startPos", begin_pos);
     range.AddProperty("endPos", end_pos);
-    range.AddProperty("compiled", true);
+    range.AddProperty("compiled", true);  // bytecode or code.
 
     if (IsReportRequested(kCallSites)) {
       PrintCallSitesData(&range, func, code);
