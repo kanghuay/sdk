@@ -425,8 +425,8 @@ deps = {
       Var("dart_git") + "term_glyph.git" + "@" + Var("term_glyph_rev"),
   Var("dart_root") + "/third_party/pkg/test":
       Var("dart_git") + "test.git" + "@" + Var("test_rev"),
-  Var("dart_root") + "/third_party/pkg/tflite_native":
-      Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),
+  #Var("dart_root") + "/third_party/pkg/tflite_native":
+  #    Var("dart_git") + "tflite_native.git" + "@" + Var("tflite_native_rev"),
   Var("dart_root") + "/third_party/pkg/test_descriptor":
       Var("dart_git") + "test_descriptor.git" + "@" + Var("test_descriptor_tag"),
   Var("dart_root") + "/third_party/pkg/test_process":
