@@ -171,7 +171,7 @@ DART_EXPORT void* TestUnprotectCode(void (*fn)(void)) {
 // Clobbers some registers with special meaning in Dart before re-entry, for
 // stress-testing. Not used on 32-bit Windows due to complications with Windows
 // "safeseh".
-#if defined(TARGET_OS_WINDOWS) && defined(HOST_ARCH_IA32)
+#if defined(DART_TARGET_OS_WINDOWS) && defined(HOST_ARCH_IA32)
 void ClobberAndCall(void (*fn)()) {
   fn();
 }
@@ -189,7 +189,7 @@ struct CallbackTestData {
   void (*callback)();
 };
 
-#if defined(TARGET_OS_LINUX)
+#if defined(DART_TARGET_OS_LINUX)
 
 thread_local sigjmp_buf buf;
 void CallbackTestSignalHandler(int) {
@@ -269,7 +269,7 @@ DART_EXPORT intptr_t TestCallbackWrongIsolate(void (*fn)()) {
   return ExpectAbort(fn);
 }
 
-#endif  // defined(TARGET_OS_LINUX)
+#endif  // defined(DART_TARGET_OS_LINUX)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Initialize `dart_api_dl.h`

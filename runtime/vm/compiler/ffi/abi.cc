@@ -49,11 +49,11 @@ Abi TargetAbi() {
 #if defined(TARGET_ARCH_X64) || defined(TARGET_ARCH_ARM64)
   return Abi::kWordSize64;
 #elif (defined(TARGET_ARCH_IA32) && /* NOLINT(whitespace/parens) */            \
-       (defined(TARGET_OS_LINUX) || defined(TARGET_OS_MACOS) ||                \
-        defined(TARGET_OS_ANDROID))) ||                                        \
-    (defined(TARGET_ARCH_ARM) && defined(TARGET_OS_IOS))
+       (defined(DART_TARGET_OS_LINUX) || defined(DART_TARGET_OS_MACOS) ||                \
+        defined(DART_TARGET_OS_ANDROID))) ||                                        \
+    (defined(TARGET_ARCH_ARM) && defined(DART_TARGET_OS_IOS))
   return Abi::kWordSize32Align32;
-#elif defined(TARGET_ARCH_IA32) && defined(TARGET_OS_WINDOWS) ||               \
+#elif defined(TARGET_ARCH_IA32) && defined(DART_TARGET_OS_WINDOWS) ||               \
     defined(TARGET_ARCH_ARM)
   return Abi::kWordSize32Align64;
 #else

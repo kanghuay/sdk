@@ -94,7 +94,7 @@ const intptr_t kDefaultMaxOldGenHeapSize = (kWordSize <= 4) ? 1536 : 30720;
 #define NOT_IN_PRECOMPILED_RUNTIME(code) code
 #endif  // defined(DART_PRECOMPILED_RUNTIME)
 
-#if !defined(PRODUCT) || defined(HOST_OS_FUCHSIA) || defined(TARGET_OS_FUCHSIA)
+#if !defined(PRODUCT) || defined(HOST_OS_FUCHSIA) || defined(DART_TARGET_OS_FUCHSIA)
 #define SUPPORT_TIMELINE 1
 #endif
 

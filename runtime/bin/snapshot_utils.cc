@@ -349,7 +349,7 @@ AppSnapshot* Snapshot::TryReadAppSnapshot(const char* script_uri,
   // For testing AOT with the standalone embedder, we also support loading
   // from a dynamic library to simulate what happens on iOS.
 
-#if defined(TARGET_OS_LINUX) || defined(TARGET_OS_MACOS)
+#if defined(DART_TARGET_OS_LINUX) || defined(DART_TARGET_OS_MACOS)
   // On Linux and OSX, resolve the script path before passing into dlopen()
   // since dlopen will not search the filesystem for paths like 'libtest.so'.
   std::unique_ptr<char, decltype(std::free)*> absolute_path{

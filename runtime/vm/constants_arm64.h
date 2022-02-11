@@ -253,7 +253,7 @@ const RegList kAllCpuRegistersList = 0xFFFFFFFF;
 // C++ ABI call registers.
 const RegList kAbiArgumentCpuRegs =
     R(R0) | R(R1) | R(R2) | R(R3) | R(R4) | R(R5) | R(R6) | R(R7);
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
 const RegList kAbiPreservedCpuRegs = R(R18) | R(R19) | R(R20) | R(R21) |
                                      R(R22) | R(R23) | R(R24) | R(R25) |
                                      R(R26) | R(R27) | R(R28);
@@ -327,7 +327,7 @@ class CallingConventions {
       kAlignedToWordSize;
 
   // How stack arguments are aligned.
-#if defined(TARGET_OS_MACOS_IOS)
+#if defined(DART_TARGET_OS_MACOS_IOS)
   static constexpr AlignmentStrategy kArgumentStackAlignment =
       kAlignedToValueSize;
 #else
@@ -340,7 +340,7 @@ class CallingConventions {
 
   // Whether 1 or 2 byte-sized arguments or return values are passed extended
   // to 4 bytes.
-#if defined(TARGET_OS_MACOS_IOS)
+#if defined(DART_TARGET_OS_MACOS_IOS)
   static constexpr ExtensionStrategy kReturnRegisterExtension = kExtendedTo4;
   static constexpr ExtensionStrategy kArgumentRegisterExtension = kExtendedTo4;
 #else

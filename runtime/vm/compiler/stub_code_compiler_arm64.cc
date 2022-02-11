@@ -1384,7 +1384,7 @@ void StubCodeCompiler::GenerateInvokeDartCodeStub(Assembler* assembler) {
   __ ldr(TMP, Address(R3, target::Thread::invoke_dart_code_stub_offset()));
   __ Push(TMP);
 
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ str(R18, Address(R3, target::Thread::saved_shadow_call_stack_offset()));
 #elif defined(USING_SHADOW_CALL_STACK)
 #error Unimplemented
@@ -1419,7 +1419,7 @@ void StubCodeCompiler::GenerateInvokeDartCodeStub(Assembler* assembler) {
   __ StoreToOffset(ZR, THR, target::Thread::top_exit_frame_info_offset());
   // target::frame_layout.exit_link_slot_from_entry_fp must be kept in sync
   // with the code below.
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   ASSERT(target::frame_layout.exit_link_slot_from_entry_fp == -24);
 #else
   ASSERT(target::frame_layout.exit_link_slot_from_entry_fp == -23);
@@ -1495,13 +1495,13 @@ void StubCodeCompiler::GenerateInvokeDartCodeStub(Assembler* assembler) {
   __ Pop(R4);
   __ StoreToOffset(R4, THR, target::Thread::vm_tag_offset());
 
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ mov(R3, THR);
 #endif
 
   __ PopNativeCalleeSavedRegisters();  // Clobbers THR
 
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ str(R18, Address(R3, target::Thread::saved_shadow_call_stack_offset()));
 #elif defined(USING_SHADOW_CALL_STACK)
 #error Unimplemented
@@ -1543,7 +1543,7 @@ void StubCodeCompiler::GenerateInvokeDartCodeFromBytecodeStub(
                  target::Thread::invoke_dart_code_from_bytecode_stub_offset()));
   __ Push(TMP);
 
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ str(R18, Address(R3, target::Thread::saved_shadow_call_stack_offset()));
 #elif defined(USING_SHADOW_CALL_STACK)
 #error Unimplemented
@@ -1578,7 +1578,7 @@ void StubCodeCompiler::GenerateInvokeDartCodeFromBytecodeStub(
   __ StoreToOffset(ZR, THR, target::Thread::top_exit_frame_info_offset());
   // target::frame_layout.exit_link_slot_from_entry_fp must be kept in sync
   // with the code below.
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   ASSERT(target::frame_layout.exit_link_slot_from_entry_fp == -24);
 #else
   ASSERT(target::frame_layout.exit_link_slot_from_entry_fp == -23);
@@ -1646,13 +1646,13 @@ void StubCodeCompiler::GenerateInvokeDartCodeFromBytecodeStub(
   __ Pop(R4);
   __ StoreToOffset(R4, THR, target::Thread::vm_tag_offset());
 
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ mov(R3, THR);
 #endif
 
   __ PopNativeCalleeSavedRegisters();  // Clobbers THR
 
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ str(R18, Address(R3, target::Thread::saved_shadow_call_stack_offset()));
 #elif defined(USING_SHADOW_CALL_STACK)
 #error Unimplemented
@@ -3533,7 +3533,7 @@ void StubCodeCompiler::GenerateJumpToFrameStub(Assembler* assembler) {
   __ mov(FP, R2);  // Frame_pointer.
   __ mov(THR, R3);
   __ SetupCSPFromThread(THR);
-#if defined(TARGET_OS_FUCHSIA)
+#if defined(DART_TARGET_OS_FUCHSIA)
   __ ldr(R18, Address(THR, target::Thread::saved_shadow_call_stack_offset()));
 #elif defined(USING_SHADOW_CALL_STACK)
 #error Unimplemented

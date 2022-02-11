@@ -35,7 +35,7 @@ namespace dart {
 DECLARE_FLAG(bool, dual_map_code);
 DECLARE_FLAG(bool, write_protect_code);
 
-#if defined(TARGET_OS_LINUX)
+#if defined(DART_TARGET_OS_LINUX)
 DECLARE_FLAG(bool, generate_perf_events_symbols);
 DECLARE_FLAG(bool, generate_perf_jitdump);
 #endif
@@ -59,7 +59,7 @@ void VirtualMemory::Init() {
 
 #if defined(DUAL_MAPPING_SUPPORTED)
 // Perf is Linux-specific and the flags aren't defined in Product.
-#if defined(TARGET_OS_LINUX) && !defined(PRODUCT)
+#if defined(DART_TARGET_OS_LINUX) && !defined(PRODUCT)
   // Perf interacts strangely with memfds, leading it to sometimes collect
   // garbled return addresses.
   if (FLAG_generate_perf_events_symbols || FLAG_generate_perf_jitdump) {
@@ -202,7 +202,7 @@ VirtualMemory* VirtualMemory::AllocateAligned(intptr_t size,
     // The mapping will be RX and stays that way until it will eventually be
     // unmapped.
     MemoryRegion region(region_ptr, size);
-    // DUAL_MAPPING_SUPPORTED is false in TARGET_OS_MACOS and hence support
+    // DUAL_MAPPING_SUPPORTED is false in DART_TARGET_OS_MACOS and hence support
     // for MAP_JIT is not required here.
     const int alias_prot = PROT_READ | PROT_EXEC;
     void* alias_ptr =

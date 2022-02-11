@@ -943,7 +943,7 @@ void Simulator::set_register(Instr* instr,
                              R31Type r31t) {
   // Register is in range.
   ASSERT((reg >= 0) && (reg < kNumberOfCpuRegisters));
-#if !defined(TARGET_OS_FUCHSIA)
+#if !defined(DART_TARGET_OS_FUCHSIA)
   ASSERT(instr == NULL || reg != R18);  // R18 is globally reserved on iOS.
 #endif
 

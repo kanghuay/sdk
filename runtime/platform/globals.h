@@ -68,22 +68,23 @@
 #include <winsock2.h>
 #endif  // defined(_WIN32)
 
+#include <inttypes.h>
+#include <stdint.h>
+#include <sys/types.h>
+
 #if !defined(_WIN32)
 #include <arpa/inet.h>
 #include <unistd.h>
 #endif  // !defined(_WIN32)
 
 #include <float.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 
 #if defined(_WIN32)
 #include "platform/floating_point_win.h"
@@ -114,7 +115,7 @@
 // TODO(iposva): Rename HOST_OS_MACOS to HOST_OS_MAC to inherit
 // the value defined in TargetConditionals.h
 #define HOST_OS_MACOS 1
-#if TARGET_OS_IPHONE
+#if DART_TARGET_OS_IPHONE
 #define HOST_OS_IOS 1
 #endif
 
@@ -380,23 +381,23 @@ typedef simd128_value_t fpu_register_t;
 #define TARGET_ARCH_IS_64_BIT 1
 #endif
 
-#if !defined(TARGET_OS_ANDROID) && !defined(TARGET_OS_FUCHSIA) &&              \
-    !defined(TARGET_OS_MACOS_IOS) && !defined(TARGET_OS_LINUX) &&              \
-    !defined(TARGET_OS_MACOS) && !defined(TARGET_OS_WINDOWS)
+#if !defined(DART_TARGET_OS_ANDROID) && !defined(DART_TARGET_OS_FUCHSIA) &&              \
+    !defined(DART_TARGET_OS_MACOS_IOS) && !defined(DART_TARGET_OS_LINUX) &&              \
+    !defined(DART_TARGET_OS_MACOS) && !defined(DART_TARGET_OS_WINDOWS)
 // No target OS specified; pick the one matching the host OS.
 #if defined(HOST_OS_ANDROID)
-#define TARGET_OS_ANDROID 1
+#define DART_TARGET_OS_ANDROID 1
 #elif defined(HOST_OS_FUCHSIA)
-#define TARGET_OS_FUCHSIA 1
+#define DART_TARGET_OS_FUCHSIA 1
 #elif defined(HOST_OS_IOS)
-#define TARGET_OS_MACOS 1
-#define TARGET_OS_MACOS_IOS 1
+#define DART_TARGET_OS_MACOS 1
+#define DART_TARGET_OS_MACOS_IOS 1
 #elif defined(HOST_OS_LINUX)
-#define TARGET_OS_LINUX 1
+#define DART_TARGET_OS_LINUX 1
 #elif defined(HOST_OS_MACOS)
-#define TARGET_OS_MACOS 1
+#define DART_TARGET_OS_MACOS 1
 #elif defined(HOST_OS_WINDOWS)
-#define TARGET_OS_WINDOWS 1
+#define DART_TARGET_OS_WINDOWS 1
 #else
 #error Automatic target OS detection failed.
 #endif
@@ -405,8 +406,8 @@ typedef simd128_value_t fpu_register_t;
 // Determine whether dual mapping of code pages is supported.
 // We test dual mapping on linux x64 and deploy it on fuchsia.
 #if !defined(DART_PRECOMPILED_RUNTIME) &&                                      \
-    (defined(TARGET_OS_LINUX) && defined(TARGET_ARCH_X64) ||                   \
-     defined(TARGET_OS_FUCHSIA))
+    (defined(DART_TARGET_OS_LINUX) && defined(TARGET_ARCH_X64) ||                   \
+     defined(DART_TARGET_OS_FUCHSIA))
 #define DUAL_MAPPING_SUPPORTED 1
 #endif
 
