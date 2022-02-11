@@ -412,7 +412,7 @@ deps = {
   Var("dart_root") + "/third_party/pkg/stack_trace":
       Var("dart_git") + "stack_trace.git" + "@" + Var("stack_trace_tag"),
   Var("dart_root") + "/third_party/pkg/stagehand":
-      Var("dart_git") + "stagehand.git" + "@" + Var("stagehand_tag"),
+      "git@code.byted.org:tech_client/stagehand.git" + "@" + Var("stagehand_tag"),
   Var("dart_root") + "/third_party/pkg/stream_channel":
       Var("dart_git") + "stream_channel.git" +
       "@" + Var("stream_channel_tag"),
