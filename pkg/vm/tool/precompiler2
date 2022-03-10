@@ -35,6 +35,9 @@ for arg in "$@"; do
     --tfa | \
     --no-tfa | \
     --protobuf-tree-shaker-v2 | \
+    --gen-bytecode | \
+    --no-gen-bytecode | \
+    --bytecode-options=* | \
     --minimal-kernel | \
     --no-embed-sources | \
     -D* )

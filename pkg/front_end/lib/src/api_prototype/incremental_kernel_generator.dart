@@ -78,6 +78,15 @@ abstract class IncrementalKernelGenerator {
       bool fullComponent: false,
       bool trackNeededDillLibraries: false});
 
+  /// Returns [CoreTypes] used during compilation.
+  /// Valid after [computeDelta] is called.
+  CoreTypes getCoreTypes();
+
+  /// Returns [ClassHierarchy] used during compilation.
+  /// Valid after [computeDelta] is called.
+
+  ClassHierarchy getClassHierarchy();
+
   /// Remove the file associated with the given file [uri] from the set of
   /// valid files.  This guarantees that those files will be re-read on the
   /// next call to [computeDelta]).

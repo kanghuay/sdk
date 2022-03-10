@@ -15,6 +15,7 @@ import 'package:kernel/transformations/continuation.dart' as transformAsync
     show transformLibraries, transformProcedure;
 import 'package:kernel/type_environment.dart';
 
+import '../metadata/binary_cache.dart' show BinaryCacheMetadataRepository;
 import '../transformations/call_site_annotator.dart' as callSiteAnnotator;
 import '../transformations/lowering.dart' as lowering
     show transformLibraries, transformProcedure;
@@ -421,6 +422,7 @@ class VmTarget extends Target {
   @override
   Component configureComponent(Component component) {
     callSiteAnnotator.addRepositoryTo(component);
+    component.addMetadataRepository(new BinaryCacheMetadataRepository());
     return super.configureComponent(component);
   }
 

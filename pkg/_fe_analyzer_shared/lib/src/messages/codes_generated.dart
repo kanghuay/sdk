@@ -3785,6 +3785,9 @@ const MessageCode messageFastaUsageLong =
   --omit-platform
     Exclude the platform from the serialized dill file.
 
+  --bytecode
+    Generate bytecode. Supported only for SDK platform compilation.
+
   --exclude-source
     Do not include source code in the dill file.
 

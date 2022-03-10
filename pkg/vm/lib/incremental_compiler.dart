@@ -111,6 +111,9 @@ class IncrementalCompiler {
         coreTypes: coreTypes);
   }
 
+  CoreTypes getCoreTypes() => _generator.getCoreTypes();
+  ClassHierarchy getClassHierarchy() => _generator.getClassHierarchy();
+
   /// This lets incremental compiler know that results of last [compile] call
   /// were accepted, don't need to be included into subsequent [compile] calls
   /// results.

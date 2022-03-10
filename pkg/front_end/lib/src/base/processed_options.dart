@@ -350,6 +350,9 @@ class ProcessedOptions {
   /// effect.
   void clearFileSystemCache() => _fileSystem = null;
 
+  /// Whether to generate bytecode.
+  bool get bytecode => _raw.bytecode;
+
   /// Whether to write a file (e.g. a dill file) when reporting a crash.
   bool get writeFileOnCrashReport => _raw.writeFileOnCrashReport;
 

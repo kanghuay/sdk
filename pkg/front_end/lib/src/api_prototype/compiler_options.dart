@@ -213,6 +213,9 @@ class CompilerOptions {
   /// diagnostic, but do not stop the compilation.
   int skipForDebugging = 0;
 
+  /// Whether to generate bytecode.
+  bool bytecode = false;
+
   /// Whether to write a file (e.g. a dill file) when reporting a crash.
   bool writeFileOnCrashReport = true;
 
@@ -354,6 +357,7 @@ class CompilerOptions {
       return false;
     }
     if (skipForDebugging != other.skipForDebugging) return false;
+    if (bytecode != other.bytecode) return false;
     if (writeFileOnCrashReport != other.writeFileOnCrashReport) return false;
     if (nnbdMode != other.nnbdMode) return false;
     if (currentSdkVersion != other.currentSdkVersion) return false;
