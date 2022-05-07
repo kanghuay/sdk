@@ -1597,6 +1597,7 @@ ObjectPtr Interpreter::Call(FunctionPtr function,
               Function::Handle(function).ToFullyQualifiedCString());
   }
 #endif
+  const char *FuncName = Function::Handle(function).ToFullyQualifiedCString();
 
   // Setup entry frame:
   //
@@ -1670,6 +1671,8 @@ ObjectPtr Interpreter::Call(FunctionPtr function,
   BoolPtr false_value = Bool::False().raw();
   ObjectPtr null_value = Object::null();
 
+bool got_entry = false;
+
 #ifdef DART_HAS_COMPUTED_GOTO
   static const void* dispatch[] = {
 #define TARGET(name, fmt, kind, fmta, fmtb, fmtc) &&bc##name,
@@ -1701,6 +1704,8 @@ SwitchDispatch:
       FP[i] = null_value;
     }
     SP = FP + num_locals - 1;
+got_entry = true;
+OS::PrintErr("Entry %ld locals %s\n", num_locals, FuncName);
 
     DISPATCH();
   }
@@ -1722,12 +1727,16 @@ SwitchDispatch:
       FP[i] = null_value;
     }
     SP = FP + num_locals - 1;
+got_entry = true;
+OS::PrintErr("EntryFixed %ld locals - %s\n", num_locals, FuncName);
 
     DISPATCH();
   }
 
   {
     BYTECODE(EntryOptional, A_B_C);
+got_entry = true;
+OS::PrintErr("EntryOptional A: %u, B: %u, C: %u - %s\n", rA, rB, rC, FuncName);
     if (CopyParameters(thread, &pc, &FP, &SP, rA, rB, rC)) {
       DISPATCH();
     } else {
@@ -1802,6 +1811,7 @@ SwitchDispatch:
       // Decode arguments descriptor's argument count (excluding type args).
       const intptr_t arg_count = InterpreterHelpers::ArgDescArgCount(argdesc_);
       // Copy passed-in type args to first local slot.
+OS::PrintErr("CheckFunctionTypeArgs arg_count: %d, FP[%d] %lx -> %lx\n", (int)arg_count, (int)first_stack_local_index, (intptr_t)FP[first_stack_local_index], (intptr_t)*FrameArguments(FP, arg_count + 1));
       FP[first_stack_local_index] = *FrameArguments(FP, arg_count + 1);
     } else if (declared_type_args_len > 0) {
       FP[first_stack_local_index] = Object::null();
@@ -1969,10 +1979,13 @@ SwitchDispatch:
       const uint32_t argc = rF;
       const uint32_t kidx = rD;
 
+FunctionPtr target = static_cast<FunctionPtr>(LOAD_CONSTANT(kidx));
+OS::PrintErr("DirectCall argc: %u, kidx: %u - %s\n", argc, kidx, Function::Handle(target).ToFullyQualifiedCString());
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       *++SP = LOAD_CONSTANT(kidx);
       ObjectPtr* call_base = SP - argc;
       ObjectPtr* call_top = SP;
+for (uint32_t i = 0; i < argc; i++) OS::PrintErr("  argv[%d] - %lx\n", i, (intptr_t)call_base[i]);
       argdesc_ = static_cast<ArrayPtr>(LOAD_CONSTANT(kidx + 1));
       if (!Invoke(thread, call_base, call_top, &pc, &FP, &SP)) {
         HANDLE_EXCEPTION;
@@ -1989,6 +2002,7 @@ SwitchDispatch:
     {
       const uint32_t argc = rF;
       const uint32_t kidx = rD;
+OS::PrintErr("UncheckedDirectCall argc: %u, kidx: %u\n", argc, kidx);
 
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       *++SP = LOAD_CONSTANT(kidx);
@@ -2012,6 +2026,8 @@ SwitchDispatch:
 
       ObjectPtr* call_base = SP - argc + 1;
       ObjectPtr* call_top = SP + 1;
+FunctionPtr target = static_cast<FunctionPtr>(LOAD_CONSTANT(kidx));
+OS::PrintErr("InterfaceCall argc: %u, kidx: %u - %s\n", argc, kidx, Function::Handle(target).ToFullyQualifiedCString());
 
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       StringPtr target_name =
@@ -2034,6 +2050,7 @@ SwitchDispatch:
 
       ObjectPtr* call_base = SP - argc + 1;
       ObjectPtr* call_top = SP + 1;
+OS::PrintErr("InstantiatedInterfaceCall argc: %u, kidx: %u\n", argc, kidx);
 
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       StringPtr target_name =
@@ -2058,6 +2075,7 @@ SwitchDispatch:
       ClosurePtr receiver = Closure::RawCast(*SP--);
       ObjectPtr* call_base = SP - argc + 1;
       ObjectPtr* call_top = SP + 1;
+OS::PrintErr("UncheckedClosureCall argc: %u, kidx: %u\n", argc, kidx);
 
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       if (UNLIKELY(receiver == null_value)) {
@@ -2084,6 +2102,7 @@ SwitchDispatch:
 
       ObjectPtr* call_base = SP - argc + 1;
       ObjectPtr* call_top = SP + 1;
+OS::PrintErr("UncheckedInterfaceCall argc: %u, kidx: %u\n", argc, kidx);
 
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       StringPtr target_name =
@@ -2107,6 +2126,7 @@ SwitchDispatch:
 
       ObjectPtr* call_base = SP - argc + 1;
       ObjectPtr* call_top = SP + 1;
+OS::PrintErr("DynamicCall argc: %u, kidx: %u\n", argc, kidx);
 
       InterpreterHelpers::IncrementUsageCounter(FrameFunction(FP));
       StringPtr target_name = String::RawCast(LOAD_CONSTANT(kidx));
@@ -2123,6 +2143,7 @@ SwitchDispatch:
   {
     BYTECODE(NativeCall, D);
     TypedDataPtr data = static_cast<TypedDataPtr>(LOAD_CONSTANT(rD));
+OS::PrintErr("NativeCall data: %lx\n", (intptr_t)data);
     MethodRecognizer::Kind kind = NativeEntryData::GetKind(data);
     switch (kind) {
       case MethodRecognizer::kObjectEquals: {
@@ -2335,6 +2356,9 @@ SwitchDispatch:
     // Restore caller PC.
     pc = SavedCallerPC(FP);
 
+if (got_entry)
+OS::PrintErr("ReturnTOS => %lx - %s\n", (intptr_t)result, FuncName);
+
     // Check if it is a fake PC marking the entry frame.
     if (IsEntryFrameMarker(pc)) {
       // Pop entry frame.
@@ -2509,6 +2533,7 @@ SwitchDispatch:
       instance->ptr()->StorePointer(
           reinterpret_cast<ObjectPtr*>(instance->ptr()) + offset_in_words,
           value, thread);
+      OS::PrintErr("StoreFieldTOS: %p[%ld] <= %lx\n", instance->ptr(), offset_in_words, (intptr_t)value);
     }
 
     SP -= 2;  // Drop instance and value.
@@ -2541,6 +2566,7 @@ SwitchDispatch:
     instance->ptr()->StorePointer(
         reinterpret_cast<ObjectPtr*>(instance->ptr()) + offset_in_words, value,
         thread);
+    OS::PrintErr("StoreContextVar: %p[%d] <= %lx\n", instance->ptr(), rE, (intptr_t)value);
 
     DISPATCH();
   }
@@ -2561,6 +2587,8 @@ SwitchDispatch:
         static_cast<uword>(Smi::Value(RAW_CAST(Smi, LOAD_CONSTANT(rD))));
     InstancePtr instance = static_cast<InstancePtr>(SP[0]);
     SP[0] = reinterpret_cast<ObjectPtr*>(instance->ptr())[offset_in_words];
+    OS::PrintErr("LoadFieldTOS: %p[%ld] => %lx\n", instance->ptr(), offset_in_words, (intptr_t)SP[0]);
+ 
     DISPATCH();
   }
 
@@ -2589,6 +2617,8 @@ SwitchDispatch:
     ContextPtr instance = static_cast<ContextPtr>(SP[0]);
     ASSERT(rE < static_cast<uint32_t>(instance->ptr()->num_variables_));
     SP[0] = reinterpret_cast<ObjectPtr*>(instance->ptr())[offset_in_words];
+    OS::PrintErr("LoadContextVar: %p[%d] => %lx\n", instance->ptr(), rE, (intptr_t)SP[0]);
+
     DISPATCH();
   }
 
@@ -2599,6 +2629,7 @@ SwitchDispatch:
     if (!AllocateContext(thread, num_context_variables, pc, FP, SP)) {
       HANDLE_EXCEPTION;
     }
+    OS::PrintErr("AllocateContext: %u vars => %lx\n", num_context_variables, (intptr_t)SP[0]);
     DISPATCH();
   }
 
@@ -2627,6 +2658,7 @@ SwitchDispatch:
           *reinterpret_cast<ObjectPtr*>(start + offset) = null_value;
         }
         *++SP = result;
+        OS::PrintErr("Allocate: %ld bytes => %lx\n", instance_size, (intptr_t)result);
         DISPATCH();
       }
     }
@@ -2638,6 +2670,7 @@ SwitchDispatch:
     INVOKE_RUNTIME(DRT_AllocateObject,
                    NativeArguments(thread, 2, SP + 2, SP + 1));
     SP++;  // Result is in SP[1].
+    OS::PrintErr("Allocate: cls %lx => %lx\n", (intptr_t)cls, (intptr_t)SP[0]);
     DISPATCH();
   }
 
@@ -2671,6 +2704,7 @@ SwitchDispatch:
     INVOKE_RUNTIME(DRT_AllocateObject,
                    NativeArguments(thread, 2, SP + 1, SP - 1));
     SP -= 1;  // Result is in SP - 1.
+    OS::PrintErr("AllocateT: => %lx\n", (intptr_t)SP[0]);
     DISPATCH();
   }
 
@@ -2682,6 +2716,7 @@ SwitchDispatch:
     if (!AllocateArray(thread, type_args, length, pc, FP, SP)) {
       HANDLE_EXCEPTION;
     }
+    OS::PrintErr("CreateArrayTOS: => %lx\n", (intptr_t)SP[0]);
     DISPATCH();
   }
 
@@ -2848,6 +2883,7 @@ SwitchDispatch:
     ASSERT(InterpreterHelpers::CheckIndex(index, array->ptr()->length_));
     array->ptr()->StorePointer(array->ptr()->data() + Smi::Value(index), value,
                                thread);
+    OS::PrintErr("StoreIndexedTOS: %p[%ld] <= %lx\n", array->ptr(), Smi::Value(index), (intptr_t)value);
     DISPATCH();
   }
 
@@ -3191,6 +3227,7 @@ SwitchDispatch:
     if (!AllocateClosure(thread, pc, FP, SP)) {
       HANDLE_EXCEPTION;
     }
+    OS::PrintErr("AllocateClosure: => %lx\n", (intptr_t)SP[0]);
     DISPATCH();
   }
 

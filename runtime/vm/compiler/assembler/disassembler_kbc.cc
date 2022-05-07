@@ -335,7 +335,7 @@ void KernelBytecodeDisassembler::Disassemble(uword start,
                                              uword end,
                                              DisassemblyFormatter* formatter,
                                              const Bytecode& bytecode) {
-#if !defined(PRODUCT)
+#if !defined(PRODUCT) || defined(FORCE_INCLUDE_DISASSEMBLER)
   ASSERT(formatter != NULL);
   char hex_buffer[kHexadecimalBufferSize];  // Instruction in hexadecimal form.
   char human_buffer[kUserReadableBufferSize];  // Human-readable instruction.
@@ -359,7 +359,7 @@ void KernelBytecodeDisassembler::Disassemble(uword start,
 }
 
 void KernelBytecodeDisassembler::Disassemble(const Function& function) {
-#if !defined(PRODUCT)
+#if !defined(PRODUCT) || defined(FORCE_INCLUDE_DISASSEMBLER)
   ASSERT(function.HasBytecode());
   const char* function_fullname = function.ToFullyQualifiedCString();
   Zone* zone = Thread::Current()->zone();
@@ -376,11 +376,13 @@ void KernelBytecodeDisassembler::Disassemble(const Function& function) {
       ObjectPool::Handle(zone, bytecode.object_pool());
   object_pool.DebugPrint();
 
-  THR_Print("PC Descriptors for function '%s' {\n", function_fullname);
-  PcDescriptors::PrintHeaderString();
   const PcDescriptors& descriptors =
       PcDescriptors::Handle(zone, bytecode.pc_descriptors());
-  THR_Print("%s}\n", descriptors.ToCString());
+  if (descriptors.Length() != 0) {
+    THR_Print("PC Descriptors for function '%s' {\n", function_fullname);
+    PcDescriptors::PrintHeaderString();
+    THR_Print("%s}\n", descriptors.ToCString());
+  }
 
   if (bytecode.HasSourcePositions()) {
     THR_Print("Source positions for function '%s' {\n", function_fullname);
@@ -441,10 +443,12 @@ void KernelBytecodeDisassembler::Disassemble(const Function& function) {
     THR_Print("%s}\n", var_descriptors.ToCString());
   }
 
-  THR_Print("Exception Handlers for function '%s' {\n", function_fullname);
   const ExceptionHandlers& handlers =
       ExceptionHandlers::Handle(zone, bytecode.exception_handlers());
-  THR_Print("%s}\n", handlers.ToCString());
+  if (handlers.num_entries() != 0) {
+    THR_Print("Exception Handlers for function '%s' {\n", function_fullname);
+    THR_Print("%s}\n", handlers.ToCString());
+  }
 
 #else
   UNREACHABLE();

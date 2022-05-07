@@ -9,12 +9,13 @@ config("debug") {
 }
 
 config("release") {
-  defines = [ "NDEBUG" ]
+  defines = [ "NDEBUG", "FORCE_INCLUDE_DISASSEMBLER" ]
 }
 
 config("product") {
   defines = [
     "NDEBUG",
     "PRODUCT",
+    "FORCE_INCLUDE_DISASSEMBLER"
   ]
 }
