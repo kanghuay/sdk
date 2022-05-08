@@ -726,7 +726,7 @@ DART_FORCE_INLINE D bit_copy(const S& source) {
 #if !defined(PRODUCT) || defined(DART_PRECOMPILER) ||                          \
     defined(FORCE_INCLUDE_DISASSEMBLER)
 #if defined(DART_PRECOMPILED_RUNTIME) && defined(PRODUCT)
-#error Requested to include IL printer into PRODUCT AOT runtime
+//#error Requested to include IL printer into PRODUCT AOT runtime
 #endif
 #define INCLUDE_IL_PRINTER 1
 #if !defined(FORCE_INCLUDE_DISASSEMBLER)
