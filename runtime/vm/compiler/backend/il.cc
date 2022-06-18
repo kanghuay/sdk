@@ -6465,7 +6465,8 @@ void NativeCallInstr::SetupNative() {
 }
 
 #if !defined(TARGET_ARCH_ARM) && !defined(TARGET_ARCH_ARM64) &&                \
-    !defined(TARGET_ARCH_RISCV32) && !defined(TARGET_ARCH_RISCV64)
+    !defined(TARGET_ARCH_RISCV32) && !defined(TARGET_ARCH_RISCV64) &&          \
+    !defined(TARGET_ARCH_BD64)
 
 LocationSummary* BitCastInstr::MakeLocationSummary(Zone* zone, bool opt) const {
   UNREACHABLE();
@@ -6475,8 +6476,7 @@ void BitCastInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
   UNREACHABLE();
 }
 
-#endif  // !defined(TARGET_ARCH_ARM) && !defined(TARGET_ARCH_ARM64) &&         \
-        // !defined(TARGET_ARCH_RISCV32) && !defined(TARGET_ARCH_RISCV64)
+#endif
 
 Representation FfiCallInstr::RequiredInputRepresentation(intptr_t idx) const {
   if (idx < TargetAddressIndex()) {

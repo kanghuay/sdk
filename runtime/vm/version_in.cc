@@ -55,7 +55,7 @@ const char* Version::str_ =
     "x64"
 #elif defined(TARGET_ARCH_ARM)
     "arm"
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
     "arm64"
 #elif defined(TARGET_ARCH_RISCV32)
     "riscv32"

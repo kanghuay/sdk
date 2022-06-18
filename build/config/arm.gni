@@ -2,13 +2,13 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-if (current_cpu == "arm" || current_cpu == "arm64") {
+if (current_cpu == "arm" || current_cpu == "arm64" || current_cpu == "bd64") {
   declare_args() {
     # Version of the ARM processor when compiling on ARM. Ignored on non-ARM
     # platforms.
     if (current_cpu == "arm") {
       arm_version = 7
-    } else if (current_cpu == "arm64") {
+    } else if (current_cpu == "arm64" || current_cpu == "bd64") {
       arm_version = 8
     } else {
       assert(false, "Unconfigured arm version")

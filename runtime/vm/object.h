@@ -5436,7 +5436,7 @@ class Instructions : public Object {
   static const intptr_t kPolymorphicEntryOffsetJIT = 40;
   static const intptr_t kMonomorphicEntryOffsetAOT = 0;
   static const intptr_t kPolymorphicEntryOffsetAOT = 12;
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
   static const intptr_t kMonomorphicEntryOffsetJIT = 8;
   static const intptr_t kPolymorphicEntryOffsetJIT = 48;
   static const intptr_t kMonomorphicEntryOffsetAOT = 8;

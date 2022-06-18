@@ -1789,7 +1789,8 @@ static constexpr dart::compiler::target::word
     WeakSerializationReference_InstanceSize = 12;
 #endif  // defined(TARGET_ARCH_IA32) && !defined(DART_COMPRESSED_POINTERS)
 
-#if defined(TARGET_ARCH_ARM64) && !defined(DART_COMPRESSED_POINTERS)
+#if (defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)) &&               \
+    !defined(DART_COMPRESSED_POINTERS)
 static constexpr dart::compiler::target::word Function_usage_counter_offset =
     112;
 static constexpr dart::compiler::target::word
@@ -6528,7 +6529,8 @@ static constexpr dart::compiler::target::word
     WeakSerializationReference_InstanceSize = 12;
 #endif  // defined(TARGET_ARCH_IA32) && !defined(DART_COMPRESSED_POINTERS)
 
-#if defined(TARGET_ARCH_ARM64) && !defined(DART_COMPRESSED_POINTERS)
+#if (defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)) &&               \
+    !defined(DART_COMPRESSED_POINTERS)
 static constexpr dart::compiler::target::word Function_usage_counter_offset =
     112;
 static constexpr dart::compiler::target::word
@@ -10822,7 +10824,8 @@ static constexpr dart::compiler::target::word
 #if defined(TARGET_ARCH_IA32) && !defined(DART_COMPRESSED_POINTERS)
 #endif  // defined(TARGET_ARCH_IA32) && !defined(DART_COMPRESSED_POINTERS)
 
-#if defined(TARGET_ARCH_ARM64) && !defined(DART_COMPRESSED_POINTERS)
+#if (defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)) &&               \
+    !defined(DART_COMPRESSED_POINTERS)
 static constexpr dart::compiler::target::word AOT_Closure_entry_point_offset =
     56;
 static constexpr dart::compiler::target::word AOT_Array_elements_start_offset =
@@ -15491,7 +15494,8 @@ static constexpr dart::compiler::target::word
 #if defined(TARGET_ARCH_IA32) && !defined(DART_COMPRESSED_POINTERS)
 #endif  // defined(TARGET_ARCH_IA32) && !defined(DART_COMPRESSED_POINTERS)
 
-#if defined(TARGET_ARCH_ARM64) && !defined(DART_COMPRESSED_POINTERS)
+#if (defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)) &&               \
+    !defined(DART_COMPRESSED_POINTERS)
 static constexpr dart::compiler::target::word AOT_Closure_entry_point_offset =
     56;
 static constexpr dart::compiler::target::word AOT_Array_elements_start_offset =

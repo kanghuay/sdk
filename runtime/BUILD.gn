@@ -108,6 +108,9 @@ config("dart_arch_config") {
     defines += [ "TARGET_ARCH_ARM" ]
   } else if (dart_target_arch == "arm64") {
     defines += [ "TARGET_ARCH_ARM64" ]
+  } else if (dart_target_arch == "bd64") {
+    defines += [ "TARGET_ARCH_BD64" ]
+    defines += [ "USING_SIMULATOR" ]
   } else if (dart_target_arch == "x64") {
     defines += [ "TARGET_ARCH_X64" ]
   } else if (dart_target_arch == "ia32" || dart_target_arch == "x86") {

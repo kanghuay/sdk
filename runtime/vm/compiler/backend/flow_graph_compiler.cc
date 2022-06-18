@@ -67,7 +67,8 @@ DECLARE_FLAG(charp, stacktrace_filter);
 DECLARE_FLAG(int, gc_every);
 DECLARE_FLAG(bool, trace_compiler);
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
 compiler::LRState ComputeInnerLRState(const FlowGraph& flow_graph) {
   auto entry = flow_graph.graph_entry();
   const bool frameless = !entry->NeedsFrame();
@@ -619,9 +620,10 @@ void FlowGraphCompiler::VisitBlocks() {
     ASSERT(block_order()[1] == flow_graph().graph_entry()->normal_entry());
   }
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   const auto inner_lr_state = ComputeInnerLRState(flow_graph());
-#endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#endif
 
   for (intptr_t i = 0; i < block_order().length(); ++i) {
     // Compile the block entry.
@@ -633,7 +635,8 @@ void FlowGraphCompiler::VisitBlocks() {
       continue;
     }
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
     // At the start of every non-entry block we expect return address either
     // to be  spilled into the frame or to be in the LR register.
     if (entry->IsFunctionEntry() || entry->IsNativeEntry()) {
@@ -641,7 +644,7 @@ void FlowGraphCompiler::VisitBlocks() {
     } else {
       assembler()->set_lr_state(inner_lr_state);
     }
-#endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#endif
 
 #if defined(DEBUG)
     if (!is_optimizing()) {
@@ -785,18 +788,20 @@ void FlowGraphCompiler::AddSlowPathCode(SlowPathCode* code) {
 }
 
 void FlowGraphCompiler::GenerateDeferredCode() {
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   const auto lr_state = ComputeInnerLRState(flow_graph());
-#endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#endif
 
   for (intptr_t i = 0; i < slow_path_code_.length(); i++) {
     SlowPathCode* const slow_path = slow_path_code_[i];
     const CombinedCodeStatistics::EntryCounter stats_tag =
         CombinedCodeStatistics::SlowPathCounterFor(
             slow_path->instruction()->tag());
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
     assembler()->set_lr_state(lr_state);
-#endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#endif
     set_current_instruction(slow_path->instruction());
     set_current_block(current_instruction_->GetBlock());
     SpecialStatsBegin(stats_tag);
@@ -815,9 +820,10 @@ void FlowGraphCompiler::GenerateDeferredCode() {
                                        /*inlining_id=*/0);
   for (intptr_t i = 0; i < deopt_infos_.length(); i++) {
     BeginCodeSourceRange(deopt_source);
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
     assembler()->set_lr_state(lr_state);
-#endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#endif
     deopt_infos_[i]->GenerateCode(this, i);
     EndCodeSourceRange(deopt_source);
   }
@@ -3539,7 +3545,8 @@ void FlowGraphCompiler::EmitNativeMove(
     return;
   }
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   // Arm does not support sign extending from a memory location, x86 does.
   if (sign_or_zero_extend && source.IsStack()) {
     ASSERT(destination.IsRegisters());
@@ -3604,7 +3611,6 @@ void FlowGraphCompiler::EmitMoveFromNative(
     EmitNativeMove(dest, src, temp);
   }
 }
-
 
 // The assignment to loading units here must match that in
 // AssignLoadingUnitsCodeVisitor, which runs after compilation is done.

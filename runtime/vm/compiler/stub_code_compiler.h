@@ -125,7 +125,7 @@ class StubCodeCompiler : public AllStatic {
   static constexpr intptr_t kNativeCallbackTrampolineSize = 12;
   static constexpr intptr_t kNativeCallbackSharedStubSize = 140;
   static constexpr intptr_t kNativeCallbackTrampolineStackDelta = 4;
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
   static constexpr intptr_t kNativeCallbackTrampolineSize = 12;
 #if defined(DART_COMPRESSED_POINTERS)
   static constexpr intptr_t kNativeCallbackSharedStubSize = 260;

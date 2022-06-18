@@ -137,7 +137,7 @@ intptr_t OS::ActivationFrameAlignment() {
   // Even if we generate code that maintains a stronger alignment, we cannot
   // assert the stronger stack alignment because C++ code will not maintain it.
   return 8;
-#elif TARGET_ARCH_ARM64
+#elif TARGET_ARCH_ARM64 || TARGET_ARCH_BD64
   return 16;
 #elif TARGET_ARCH_IA32
   return 16;  // iOS simulator

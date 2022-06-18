@@ -310,7 +310,7 @@ bool LoadedElf::ReadHeader() {
               "Architecture mismatch.");
 #elif defined(TARGET_ARCH_ARM)
   CHECK_ERROR(header_.machine == dart::elf::EM_ARM, "Architecture mismatch.");
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
   CHECK_ERROR(header_.machine == dart::elf::EM_AARCH64,
               "Architecture mismatch.");
 #elif defined(TARGET_ARCH_RISCV32) || defined(TARGET_ARCH_RISCV64)

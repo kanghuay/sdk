@@ -14,6 +14,8 @@
 #include "vm/simulator_arm.h"
 #elif defined(TARGET_ARCH_ARM64)
 #include "vm/simulator_arm64.h"
+#elif defined(TARGET_ARCH_BD64)
+#include "vm/simulator_bd64.h"
 #elif defined(TARGET_ARCH_RISCV32) || defined(TARGET_ARCH_RISCV64)
 #include "vm/simulator_riscv.h"
 #else

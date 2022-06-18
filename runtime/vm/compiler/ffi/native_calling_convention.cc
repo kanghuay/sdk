@@ -315,7 +315,7 @@ class ArgumentAllocator : public ValueObject {
   }
 #endif  // defined(TARGET_ARCH_ARM)
 
-#if defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
   // Slightly different from Arm32. FPU registers don't alias the same way,
   // structs up to 16 bytes block remaining registers if they do not fit in
   // registers, and larger structs go on stack always.
@@ -381,7 +381,7 @@ class ArgumentAllocator : public ValueObject {
     return *new (zone_)
         PointerToMemoryLocation(pointer_location, compound_type);
   }
-#endif  // defined(TARGET_ARCH_ARM64)
+#endif  // defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
 
 #if defined(TARGET_ARCH_RISCV32) || defined(TARGET_ARCH_RISCV64)
   // See RISC-V ABIs Specification
@@ -586,7 +586,7 @@ static NativeLocations& ArgumentLocations(
   // Loop through all arguments and assign a register or a stack location.
   // Allocate result pointer for composite returns first.
   ArgumentAllocator frame_state(zone);
-#if !defined(TARGET_ARCH_ARM64)
+#if !defined(TARGET_ARCH_ARM64) && !defined(TARGET_ARCH_BD64)
   // Arm64 allocates the pointer in R8, which is not an argument location.
   if (return_location.IsPointerToMemory()) {
     const auto& pointer_location =
@@ -773,7 +773,7 @@ static const NativeLocation& CompoundResultLocation(
 }
 #endif  // defined(TARGET_ARCH_ARM)
 
-#if defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
 // If allocated to integer or fpu registers as argument, same for return,
 // otherwise a pointer to the result location is passed in.
 static const NativeLocation& CompoundResultLocation(
@@ -787,7 +787,7 @@ static const NativeLocation& CompoundResultLocation(
   }
   return PointerToMemoryResultLocation(zone, payload_type);
 }
-#endif  // defined(TARGET_ARCH_ARM64)
+#endif  // defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
 
 #if defined(TARGET_ARCH_RISCV32) || defined(TARGET_ARCH_RISCV64)
 static const NativeLocation& CompoundResultLocation(

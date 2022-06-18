@@ -79,7 +79,7 @@ static_assert(offsetof(AbiAlignmentUint64, i) == 8,
 #elif defined(TARGET_ARCH_ARM)
 #define TARGET_ARCH_NAME Arm
 #define TARGET_ARCH_NAME_LC arm
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
 #define TARGET_ARCH_NAME Arm64
 #define TARGET_ARCH_NAME_LC arm64
 #elif defined(TARGET_ARCH_RISCV32)

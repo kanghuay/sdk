@@ -99,7 +99,8 @@ intptr_t AssemblerBase::InsertAlignedRelocation(BSS::Relocation reloc) {
 
 #if defined(DEBUG)
 static void InitializeMemoryWithBreakpoints(uword data, intptr_t length) {
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   ASSERT(Utils::IsAligned(data, 4));
   ASSERT(Utils::IsAligned(length, 4));
   const uword end = data + length;

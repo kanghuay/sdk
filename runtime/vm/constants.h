@@ -13,6 +13,8 @@
 #include "vm/constants_arm.h"
 #elif defined(TARGET_ARCH_ARM64)
 #include "vm/constants_arm64.h"
+#elif defined(TARGET_ARCH_BD64)
+#include "vm/constants_bd64.h"
 #elif defined(TARGET_ARCH_RISCV32) || defined(TARGET_ARCH_RISCV64)
 #include "vm/constants_riscv.h"
 #else

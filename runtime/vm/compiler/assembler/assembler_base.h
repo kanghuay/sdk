@@ -30,7 +30,8 @@ class Slot;
 
 namespace compiler {
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
 // On ARM and ARM64 branch-link family of instructions puts return address
 // into a dedicated register (LR), which called code will then preserve
 // manually if needed. To ensure that LR is not clobbered accidentally we
@@ -327,7 +328,8 @@ class Label : public ZoneAllocated {
   intptr_t position_;
   intptr_t unresolved_;
   intptr_t unresolved_near_positions_[kMaxUnresolvedBranches];
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   // On ARM/ARM64 we track LR state: whether it contains return address or
   // whether it can be clobbered. To make sure that our tracking it correct
   // for non linear code sequences we additionally verify at labels that
@@ -345,7 +347,8 @@ class Label : public ZoneAllocated {
 
   void Reinitialize() { position_ = 0; }
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   void BindTo(intptr_t position, LRState lr_state)
 #else
   void BindTo(intptr_t position)
@@ -355,12 +358,14 @@ class Label : public ZoneAllocated {
     ASSERT(!HasNear());
     position_ = -position - kBias;
     ASSERT(IsBound());
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
     UpdateLRState(lr_state);
 #endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
   }
 
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
   void LinkTo(intptr_t position, LRState lr_state)
 #else
   void LinkTo(intptr_t position)
@@ -369,7 +374,8 @@ class Label : public ZoneAllocated {
     ASSERT(!IsBound());
     position_ = position + kBias;
     ASSERT(IsLinked());
-#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
+#if defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64) ||                  \
+    defined(TARGET_ARCH_BD64)
     UpdateLRState(lr_state);
 #endif  // defined(TARGET_ARCH_ARM) || defined(TARGET_ARCH_ARM64)
   }

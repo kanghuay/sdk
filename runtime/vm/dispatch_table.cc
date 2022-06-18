@@ -15,7 +15,7 @@ intptr_t DispatchTable::OriginElement() {
 #elif defined(TARGET_ARCH_ARM)
   // Max negative load offset / 4
   return 1023;
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
   // Max consecutive sub immediate value
   return 4096;
 #elif defined(TARGET_ARCH_RISCV32)
@@ -38,7 +38,7 @@ intptr_t DispatchTable::LargestSmallOffset() {
 #elif defined(TARGET_ARCH_ARM)
   // Origin + Max positive load offset / 4
   return 2046;
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
   // Origin + Max consecutive add immediate value
   return 8192;
 #elif defined(TARGET_ARCH_RISCV32)

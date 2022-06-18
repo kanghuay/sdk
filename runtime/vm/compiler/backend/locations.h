@@ -586,7 +586,7 @@ class RegisterSet : public ValueObject {
       if (reg == FPREG || reg == SPREG) continue;
 #if defined(TARGET_ARCH_ARM)
       if (reg == PC) continue;
-#elif defined(TARGET_ARCH_ARM64)
+#elif defined(TARGET_ARCH_ARM64) || defined(TARGET_ARCH_BD64)
       if (reg == R31) continue;
 #elif defined(TARGET_ARCH_RISCV32) || defined(TARGET_ARCH_RISCV64)
       if (reg == ZR || reg == TP || reg == GP) continue;

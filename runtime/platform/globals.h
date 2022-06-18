@@ -297,7 +297,8 @@ struct simd128_value_t {
 
 #if !defined(TARGET_ARCH_ARM) && !defined(TARGET_ARCH_X64) &&                  \
     !defined(TARGET_ARCH_IA32) && !defined(TARGET_ARCH_ARM64) &&               \
-    !defined(TARGET_ARCH_RISCV32) && !defined(TARGET_ARCH_RISCV64)
+    !defined(TARGET_ARCH_RISCV32) && !defined(TARGET_ARCH_RISCV64) &&          \
+    !defined(TARGET_ARCH_BD64)
 // No target architecture specified pick the one matching the host architecture.
 #if defined(HOST_ARCH_ARM)
 #define TARGET_ARCH_ARM 1
@@ -320,7 +321,7 @@ struct simd128_value_t {
     defined(TARGET_ARCH_RISCV32)
 #define TARGET_ARCH_IS_32_BIT 1
 #elif defined(TARGET_ARCH_X64) || defined(TARGET_ARCH_ARM64) ||                \
-    defined(TARGET_ARCH_RISCV64)
+    defined(TARGET_ARCH_RISCV64) || defined(TARGET_ARCH_BD64)
 #define TARGET_ARCH_IS_64_BIT 1
 #else
 #error Automatic target architecture detection failed.
@@ -364,6 +365,9 @@ struct simd128_value_t {
 #define USING_SIMULATOR 1
 #endif
 #endif
+#elif defined(TARGET_ARCH_BD64)
+#define TARGET_HOST_MISMATCH 1
+#define USING_SIMULATOR 1
 #elif defined(TARGET_ARCH_ARM64)
 #if !defined(HOST_ARCH_ARM64)
 #define USING_SIMULATOR 1
