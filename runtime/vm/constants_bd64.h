@@ -62,15 +62,15 @@ enum Register {
   R28 = 28,  // HEAP_BITS
   R29 = 29,  // FP
   R30 = 30,  // LR
-  R31 = 31,  // ZR, CSP
+  R31 = 31,  // CSP
   kNumberOfCpuRegisters = 32,
   kNoRegister = -1,
   kNoRegister2 = -2,
 
   // These registers both use the encoding R31, but to avoid mistakes we give
   // them different values, and then translate before encoding.
-  CSP = 32,
-  ZR = 33,
+  CSP = R31,
+  ZR = R18,
 
   // Aliases.
   IP0 = R16,
@@ -509,7 +509,7 @@ class CallingConventions {
 #undef R
 
 static inline Register ConcreteRegister(Register r) {
-  return ((r == ZR) || (r == CSP)) ? R31 : r;
+  return r;
 }
 
 // Values for the condition field as defined in section A3.2.
@@ -1019,11 +1019,6 @@ enum Extend {
   kMaxExtend = 8,
 };
 
-enum R31Type {
-  R31IsSP,
-  R31IsZR,
-};
-
 // Constants used for the decoding or encoding of the individual fields of
 // instructions. Based on the "Figure 3-1 ARM instruction set summary".
 enum InstructionFields {
@@ -1371,48 +1366,6 @@ class Instr {
 #undef IS_OP
 
   inline bool HasS() const { return (SField() == 1); }
-
-  // Indicate whether Rd can be the CSP or ZR. This does not check that the
-  // instruction actually has an Rd field.
-  R31Type RdMode() const {
-    // The following instructions use CSP as Rd:
-    //  Add/sub (immediate) when not setting the flags.
-    //  Add/sub (extended) when not setting the flags.
-    //  Logical (immediate) when not setting the flags.
-    // Otherwise, R31 is the ZR.
-    if (IsAddSubImmOp() || (IsAddSubShiftExtOp() && IsExtend())) {
-      if (HasS()) {
-        return R31IsZR;
-      } else {
-        return R31IsSP;
-      }
-    }
-    if (IsLogicalImmOp()) {
-      const int op = Bits(29, 2);
-      const bool set_flags = op == 3;
-      if (set_flags) {
-        return R31IsZR;
-      } else {
-        return R31IsSP;
-      }
-    }
-    return R31IsZR;
-  }
-
-  // Indicate whether Rn can be CSP or ZR. This does not check that the
-  // instruction actually has an Rn field.
-  R31Type RnMode() const {
-    // The following instructions use CSP as Rn:
-    //  All loads and stores.
-    //  Add/sub (immediate).
-    //  Add/sub (extended).
-    // Otherwise, r31 is ZR.
-    if (IsLoadStoreOp() || IsAddSubImmOp() ||
-        (IsAddSubShiftExtOp() && IsExtend())) {
-      return R31IsSP;
-    }
-    return R31IsZR;
-  }
 
   // Logical immediates can't encode zero, so a return value of zero is used to
   // indicate a failure case. Specifically, where the constraints on imm_s are

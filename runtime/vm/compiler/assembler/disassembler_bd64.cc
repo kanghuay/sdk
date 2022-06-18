@@ -33,7 +33,7 @@ class ARM64Decoder : public ValueObject {
   void PrintInt(int value);
 
   // Printing of common values.
-  void PrintRegister(int reg, R31Type r31t);
+  void PrintRegister(int reg);
   void PrintVRegister(int reg);
   void PrintShiftExtendRm(Instr* instr);
   void PrintMemOperand(Instr* instr);
@@ -88,15 +88,10 @@ void ARM64Decoder::PrintInt(int value) {
 }
 
 // Print the register name according to the active name converter.
-void ARM64Decoder::PrintRegister(int reg, R31Type r31t) {
+void ARM64Decoder::PrintRegister(int reg) {
   ASSERT(0 <= reg);
   ASSERT(reg < kNumberOfCpuRegisters);
-  if (reg == 31) {
-    const char* rstr = (r31t == R31IsZR) ? "zr" : "csp";
-    Print(rstr);
-  } else {
-    Print(cpu_reg_names[reg]);
-  }
+  Print(cpu_reg_names[reg]);
 }
 
 void ARM64Decoder::PrintVRegister(int reg) {
@@ -148,7 +143,7 @@ void ARM64Decoder::PrintShiftExtendRm(Instr* instr) {
   Extend extend = instr->ExtendTypeField();
   int extend_shift_amount = instr->ExtShiftAmountField();
 
-  PrintRegister(rm, R31IsZR);
+  PrintRegister(rm);
 
   if (instr->IsShift() && (shift == LSL) && (shift_amount == 0)) {
     // Special case for using rm only.
@@ -189,7 +184,7 @@ void ARM64Decoder::PrintMemOperand(Instr* instr) {
     const uint32_t imm12 = instr->Imm12Field();
     const uint32_t off = imm12 << scale;
     Print("[");
-    PrintRegister(rn, R31IsSP);
+    PrintRegister(rn);
     if (off != 0) {
       buffer_pos_ += Utils::SNPrint(current_position_in_buffer(),
                                     remaining_size_in_buffer(), ", #%d", off);
@@ -201,7 +196,7 @@ void ARM64Decoder::PrintMemOperand(Instr* instr) {
         // rn + signed 9-bit immediate, pre-index, no writeback.
         const int32_t imm9 = instr->SImm9Field();
         Print("[");
-        PrintRegister(rn, R31IsSP);
+        PrintRegister(rn);
         buffer_pos_ +=
             Utils::SNPrint(current_position_in_buffer(),
                            remaining_size_in_buffer(), ", #%d", imm9);
@@ -212,7 +207,7 @@ void ARM64Decoder::PrintMemOperand(Instr* instr) {
         const int32_t imm9 = instr->SImm9Field();
         // rn + signed 9-bit immediate, post-index, writeback.
         Print("[");
-        PrintRegister(rn, R31IsSP);
+        PrintRegister(rn);
         Print("]");
         buffer_pos_ +=
             Utils::SNPrint(current_position_in_buffer(),
@@ -224,9 +219,9 @@ void ARM64Decoder::PrintMemOperand(Instr* instr) {
         const Extend ext = instr->ExtendTypeField();
         const int s = instr->Bit(12);
         Print("[");
-        PrintRegister(rn, R31IsSP);
+        PrintRegister(rn);
         Print(", ");
-        PrintRegister(rm, R31IsZR);
+        PrintRegister(rm);
         buffer_pos_ += Utils::SNPrint(current_position_in_buffer(),
                                       remaining_size_in_buffer(), " %s",
                                       extend_names[ext]);
@@ -240,7 +235,7 @@ void ARM64Decoder::PrintMemOperand(Instr* instr) {
         const int32_t imm9 = instr->SImm9Field();
         // rn + signed 9-bit immediate, pre-index, writeback.
         Print("[");
-        PrintRegister(rn, R31IsSP);
+        PrintRegister(rn);
         buffer_pos_ +=
             Utils::SNPrint(current_position_in_buffer(),
                            remaining_size_in_buffer(), ", #%d", imm9);
@@ -259,7 +254,7 @@ void ARM64Decoder::PrintPairMemOperand(Instr* instr) {
       (instr->Bit(26) == 1) ? 2 + instr->SzField() : 2 + instr->SFField();
   const int32_t offset = simm7 << shift;
   Print("[");
-  PrintRegister(rn, R31IsSP);
+  PrintRegister(rn);
   switch (instr->Bits(23, 3)) {
     case 1:
       // rn + (imm7 << (2 + B31)), post-index, writeback.
@@ -291,32 +286,32 @@ int ARM64Decoder::FormatRegister(Instr* instr, const char* format) {
   ASSERT(format[0] == 'r');
   if (format[1] == 'n') {  // 'rn: Rn register
     int reg = instr->RnField();
-    PrintRegister(reg, instr->RnMode());
+    PrintRegister(reg);
     return 2;
   } else if (format[1] == 'd') {  // 'rd: Rd register
     int reg = instr->RdField();
-    PrintRegister(reg, instr->RdMode());
+    PrintRegister(reg);
     return 2;
   } else if (format[1] == 'm') {  // 'rm: Rm register
     int reg = instr->RmField();
-    PrintRegister(reg, R31IsZR);
+    PrintRegister(reg);
     return 2;
   } else if (format[1] == 't') {  // 'rt: Rt register
     if (format[2] == '2') {
       int reg = instr->Rt2Field();
-      PrintRegister(reg, R31IsZR);
+      PrintRegister(reg);
       return 3;
     }
     int reg = instr->RtField();
-    PrintRegister(reg, R31IsZR);
+    PrintRegister(reg);
     return 2;
   } else if (format[1] == 'a') {  // 'ra: Ra register
     int reg = instr->RaField();
-    PrintRegister(reg, R31IsZR);
+    PrintRegister(reg);
     return 2;
   } else if (format[1] == 's') {  // 'rs: Rs register
     int reg = instr->RsField();
-    PrintRegister(reg, R31IsZR);
+    PrintRegister(reg);
     return 2;
   }
   UNREACHABLE();
